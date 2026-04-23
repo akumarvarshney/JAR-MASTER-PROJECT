@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jar Strategy Terminal | Immersive Vault</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;300;400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* === PIXEL VAULT AESTHETIC RESET === */
+        :root {
+            --bg-color: #030303;
+            --text-main: #ffffff;
+            --text-dim: #d1d5db;
+            --accent: #ffffff;
+            --jar-gold: #eab308;
+            --jar-gold-glow: #fde047;
+        }
+
+        body { 
+            font-family: 'JetBrains Mono', monospace; 
+            background-color: var(--bg-color); 
+            color: var(--text-main); 
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            perspective: 1200px;
+            text-transform: uppercase;
+            cursor: crosshair;
+        }
+
+        button, a, .nav-item { cursor: crosshair !important; }
+
+        /* === IMMERSIVE FILTERS (CRT & GRAIN) === */
+        .noise {
+            position: fixed; top: -50%; left: -50%; width: 200%; height: 200%;
+            pointer-events: none; z-index: 9998; opacity: 0.08;
+            background-image: url('data:image/svg+xml;utf8,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)"/%3E%3C/svg%3E');
+            animation: grain 0.4s steps(10) infinite;
+        }
+
+        @keyframes grain {
+            0%, 100% { transform: translate(0, 0); }
+            10% { transform: translate(-10px, -10px); }
+            20% { transform: translate(-20px, 10px); }
+            30% { transform: translate(10px, -20px); }
+            40% { transform: translate(-10px, 20px); }
+            50% { transform: translate(-20px, 10px); }
+            60% { transform: translate(20px, 0); }
+            70% { transform: translate(0, 10px); }
+            80% { transform: translate(-10px, 20px); }
+            90% { transform: translate(10px, 10px); }
+        }
+        
+        .scanlines {
+            position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+            background-size: 100% 4px;
+        }
+
+        .vignette {
+            position: fixed; inset: 0; pointer-events: none; z-index: 9997;
+            background: radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.9) 100%);
+        }
+
+        .bg-grid {
+            position: fixed; inset: 0; pointer-events: none; z-index: 0;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            background-position: center center;
+        }
+
+        /* === CONTINUOUS SCROLLING TEXT BACKGROUND === */
+        .scrolling-text-bg {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1; pointer-events: none; overflow: hidden;
+            display: flex; flex-direction: column; justify-content: space-between;
+            opacity: 0.04;
+            transform: rotate(-2deg) scale(1.2);
+        }
+        .marquee-row {
+            white-space: nowrap; font-size: 8rem; font-weight: 700;
+            color: #ffffff; text-transform: uppercase;
+            animation: scrollText 60s linear infinite;
+        }
+        .marquee-row:nth-child(even) {
+            animation-direction: reverse;
+            animation-duration: 80s;
+        }
+        @keyframes scrollText {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        /* === HUD ELEMENTS === */
+        .corner-marker { position: absolute; font-size: 12px; color: var(--text-dim); z-index: 50; letter-spacing: 0.1em; opacity: 0.7;}
+        .cm-tl { top: 30px; left: 40px; }
+        .cm-tr { top: 30px; right: 40px; }
+        .cm-bl { bottom: 30px; left: 40px; }
+        .cm-br { bottom: 30px; right: 40px; }
+
+        .hud-text { font-size: 10px; letter-spacing: 0.2em; color: var(--text-dim); line-height: 1.8; }
+        
+        .header-top-center {
+            position: absolute; top: 30px; left: 50%; transform: translateX(-50%);
+            text-align: center; z-index: 50; color: #a1a1aa;
+        }
+
+        .footer-bottom-center {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            text-align: center; z-index: 50; color: #a1a1aa;
+        }
+
+        /* === FLOATING PANELS === */
+        .panel-left { position: absolute; left: 40px; top: 50%; transform: translateY(-50%); z-index: 40; width: 260px; }
+        .panel-right { position: absolute; right: 40px; top: 50%; transform: translateY(-50%); z-index: 40; width: 260px; text-align: left; }
+
+        .nav-item {
+            font-size: 12px; color: var(--text-dim); margin-bottom: 18px; cursor: pointer;
+            transition: all 0.3s ease; display: flex; align-items: center; gap: 12px;
+            letter-spacing: 0.1em; font-weight: 500;
+        }
+        .nav-item:hover { color: var(--accent); transform: translateX(8px); text-shadow: 0 0 8px rgba(255,255,255,0.3);}
+        .nav-item.active { color: var(--accent); font-weight: 700; text-shadow: 0 0 12px rgba(255,255,255,0.5); transform: translateX(8px);}
+        .nav-item.active::before { content: '>'; color: var(--jar-gold-glow); font-weight: bold; text-shadow: 0 0 10px var(--jar-gold); }
+
+        .data-block { margin-bottom: 35px; }
+        .data-label { font-size: 10px; color: var(--text-dim); letter-spacing: 0.3em; margin-bottom: 10px; opacity: 0.8; }
+        .data-value { font-size: 12px; color: var(--accent); letter-spacing: 0.1em; line-height: 1.7; font-weight: 400;}
+
+        /* === 3D CENTER STAGE === */
+        .stage-wrapper {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            z-index: 10; perspective: 1200px;
+        }
+
+        .target-box {
+            position: relative; 
+            width: auto; height: auto;
+            min-width: 400px; max-width: 520px;
+            padding: 40px 30px;
+            transform-style: preserve-3d; 
+            transition: transform 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+
+        .bracket { position: absolute; width: 40px; height: 40px; border-color: rgba(255,255,255,0.25); border-style: solid; transition: all 0.5s; z-index: 0;}
+        .bracket-tl { top: 0; left: 0; border-width: 1px 0 0 1px; }
+        .bracket-tr { top: 0; right: 0; border-width: 1px 1px 0 0; }
+        .bracket-bl { bottom: 0; left: 0; border-width: 0 0 1px 1px; }
+        .bracket-br { bottom: 0; right: 0; border-width: 0 1px 1px 0; }
+        
+        .target-box:hover .bracket { border-color: var(--jar-gold-glow); box-shadow: inset 0 0 20px rgba(250, 204, 21, 0.2); }
+
+        .crosshair-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.2); font-size: 14px; pointer-events: none; z-index: 0; }
+        .crosshair-marker { position: absolute; color: rgba(255,255,255,0.3); font-size: 10px; font-weight: 300;}
+
+        .content-core {
+            transform-style: preserve-3d; transform: translateZ(50px);
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+            z-index: 10; width: 100%; opacity: 0;
+        }
+
+        .title-3d { font-size: 28px; font-weight: 700; color: var(--accent); margin-bottom: 12px; letter-spacing: 0.15em; text-shadow: 0 0 25px rgba(255,255,255,0.6); }
+        .desc-3d { font-size: 11px; color: #e5e7eb; line-height: 1.8; letter-spacing: 0.1em; max-width: 480px; margin-bottom: 30px; text-transform: uppercase; }
+
+        .action-btn {
+            display: flex; align-items: center; justify-content: flex-start; gap: 8px; padding: 10px 12px;
+            background: rgba(10, 10, 10, 0.4); border: 1px solid rgba(255,255,255,0.15);
+            color: var(--text-dim); font-size: 9px; cursor: crosshair; transition: all 0.3s;
+            letter-spacing: 0.1em; position: relative; overflow: hidden; font-weight: bold;
+            border-radius: 6px; width: 100%; text-align: left;
+        }
+        .action-btn:hover { border-color: var(--jar-gold-glow); color: var(--accent); background: rgba(255,255,255,0.05); box-shadow: 0 0 15px rgba(250, 204, 21, 0.2);}
+
+        @keyframes glitch-anim {
+            0% { opacity: 1; transform: translateZ(50px) scale(1); filter: blur(0px); }
+            25% { opacity: 0; transform: translateZ(-200px) scale(0.85) translateY(-10px); filter: blur(8px); }
+            50% { opacity: 0; transform: translateZ(-200px) scale(0.85) translateY(10px); filter: blur(8px); }
+            75% { opacity: 0.8; transform: translateZ(80px) scale(1.02); filter: blur(2px); }
+            100% { opacity: 1; transform: translateZ(50px) scale(1); filter: blur(0px); }
+        }
+        .glitching { animation: glitch-anim 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
+
+        /* === 3D GOLD BARS (THE PYRAMID) === */
+        .gold-bars-container {
+            width: 120px; height: 80px; margin-bottom: 30px;
+            perspective: 800px; transform-style: preserve-3d;
+        }
+        .gold-bars-stage {
+            width: 100%; height: 100%; position: relative;
+            transform-style: preserve-3d; animation: spin-3d 12s linear infinite;
+        }
+        @keyframes spin-3d { 0% { transform: rotateX(-20deg) rotateY(0deg); } 100% { transform: rotateX(-20deg) rotateY(360deg); } }
+        .gold-bar-3d { position: absolute; top: 50%; left: 50%; transform-style: preserve-3d; }
+        
+        .gb-bottom-left { transform: translateX(-24px) translateY(12px); }
+        .gb-bottom-right { transform: translateX(24px) translateY(12px); }
+        .gb-top-center { transform: translateY(-4px); }
+
+        .gb-face {
+            position: absolute; top: 50%; left: 50%; border: 1px solid rgba(255,255,255,0.1); transform-style: preserve-3d;
+        }
+        
+        .gb-front, .gb-back { width: 80px; height: 16px; margin-top: -8px; margin-left: -40px; }
+        .gb-top, .gb-bottom { width: 80px; height: 36px; margin-top: -18px; margin-left: -40px; }
+        .gb-left, .gb-right { width: 36px; height: 16px; margin-top: -8px; margin-left: -18px; }
+
+        .gb-front  { transform: translateZ(18px); background: linear-gradient(135deg, #fef08a, #ca8a04); box-shadow: inset 0 0 10px rgba(0,0,0,0.3);}
+        .gb-back   { transform: rotateY(180deg) translateZ(18px); background: linear-gradient(135deg, #ca8a04, #854d0e); }
+        .gb-top    { transform: rotateX(90deg) translateZ(8px); background: linear-gradient(135deg, #fefce8, #eab308); box-shadow: inset 0 0 20px rgba(255,255,255,0.6); }
+        .gb-bottom { transform: rotateX(-90deg) translateZ(8px); background: #422006; }
+        .gb-left   { transform: rotateY(-90deg) translateZ(18px); background: linear-gradient(to bottom, #fefce8, #a16207); }
+        .gb-right  { transform: rotateY(90deg) translateZ(18px); background: linear-gradient(to bottom, #fefce8, #a16207); }
+
+        /* === TERMINAL BOOT SCREEN === */
+        #boot-screen {
+            position: fixed; inset: 0; z-index: 99999; background: #030303;
+            display: flex; flex-direction: column; justify-content: center; padding: 10%;
+            transition: opacity 0.8s ease-in-out, transform 0.8s ease-in-out;
+        }
+        #boot-screen.hide { opacity: 0; pointer-events: none; transform: scale(1.05); }
+        
+        .boot-text-container { font-size: 14px; line-height: 2; color: #a1a1aa; letter-spacing: 0.1em; max-width: 800px; margin: 0 auto; width: 100%; }
+        .fat-cursor { display: inline-block; width: 12px; height: 1em; background: var(--jar-gold); animation: blink 1s step-end infinite; vertical-align: middle; margin-left: 8px;}
+        @keyframes blink { 50% { opacity: 0; } }
+        
+        .enter-btn-wrapper { opacity: 0; transition: opacity 1s; margin-top: 50px; text-align: left; }
+        .enter-btn-wrapper.show { opacity: 1; }
+        .highlight-text { color: var(--jar-gold); text-shadow: 0 0 10px rgba(234, 179, 8, 0.4); }
+
+        /* === RAW TERMINAL MODAL === */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0, 0, 0, 0.95); backdrop-filter: blur(10px);
+            z-index: 10000; display: none; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .modal-overlay.active { display: flex; opacity: 1; }
+        .modal-card {
+            width: 80%; max-width: 800px; border: 1px solid rgba(255,255,255,0.2);
+            background: transparent; padding: 2px; position: relative;
+        }
+        .modal-header { display: flex; justify-content: space-between; padding: 15px 20px; border-bottom: 1px solid rgba(255,255,255,0.2); font-size: 11px; color: var(--accent); letter-spacing: 0.2em; font-weight: bold;}
+        
+        .raw-content {
+            padding: 40px; min-height: 400px; display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: radial-gradient(circle at center, rgba(30,30,30,1) 0%, rgba(0,0,0,1) 100%);
+        }
+        
+        .scroll-indicator {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            display: flex; flex-direction: column; items-center; z-index: 50;
+            opacity: 0.6; animation: bob 2s infinite ease-in-out; cursor: crosshair;
+        }
+        @keyframes bob { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, 10px); } }
+    </style>
+</head>
+<body>
+
+    <!-- === TERMINAL BOOT SEQUENCE === -->
+    <div id="boot-screen">
+        <div class="noise"></div>
+        <div class="scanlines"></div>
+        
+        <div class="boot-text-container">
+            <div id="terminal-output"></div>
+            <div class="enter-btn-wrapper flex flex-col gap-8" id="enter-btn-wrapper">
+                
+                <div class="border-l-2 border-red-500/50 pl-5 relative bg-red-900/10 p-5 rounded-r-xl max-w-[700px] border-y border-r border-red-900/30">
+                    <div class="absolute -left-[2px] top-0 w-[2px] h-full bg-red-500 animate-pulse opacity-80"></div>
+                    <div class="text-[10px] text-red-500 mb-3 font-bold tracking-[0.3em]">// CRITICAL_ANOMALY_DETECTED</div>
+                    <div class="text-xs text-gray-300 leading-loose tracking-[0.1em] uppercase">
+                        <span class="text-white font-bold">The Trust Gap:</span><br>
+                        Users expect a stable "Savings Account" but experience a volatile "Commodity Asset" (3% GST + 3% Spread).<br>
+                        <div class="mt-3 text-red-500 font-bold text-sm">> RESULT: SEVERE DAY-0 CHURN.</div>
+                    </div>
+                </div>
+
+                <button onclick="enterTerminal()" class="action-btn" style="max-width: 300px; justify-content: center; font-size: 14px; padding: 16px;">
+                    [ ENTER_TERMINAL ]
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP WRAPPER -->
+    <div id="main-app">
+        <!-- IMMERSIVE BACKGROUND & FILTERS -->
+        <div class="bg-grid"></div>
+        <div class="noise"></div>
+        <div class="scanlines"></div>
+        <div class="vignette"></div>
+
+        <!-- SCROLLING KINETIC BACKGROUND -->
+        <div class="scrolling-text-bg">
+            <div class="marquee-row">PROJECT GLASS / TRUST LAYER / MARGIN OPTIMIZATION / PROJECT GLASS / TRUST LAYER / MARGIN OPTIMIZATION / PROJECT GLASS / TRUST LAYER / MARGIN OPTIMIZATION /</div>
+            <div class="marquee-row">DAY-0 CHURN / COGNITIVE DISSONANCE / BEHAVIORAL ECONOMICS / DAY-0 CHURN / COGNITIVE DISSONANCE / BEHAVIORAL ECONOMICS / DAY-0 CHURN / COGNITIVE DISSONANCE / BEHAVIORAL ECONOMICS /</div>
+            <div class="marquee-row">SYSTEM ARCHITECTURE / SAGA PATTERNS / APACHE KAFKA / SYSTEM ARCHITECTURE / SAGA PATTERNS / APACHE KAFKA / SYSTEM ARCHITECTURE / SAGA PATTERNS / APACHE KAFKA /</div>
+            <div class="marquee-row">RADICAL TRANSPARENCY / LTV EXPANSION / ALGORITHMIC RETENTION / RADICAL TRANSPARENCY / LTV EXPANSION / ALGORITHMIC RETENTION / RADICAL TRANSPARENCY / LTV EXPANSION / ALGORITHMIC RETENTION /</div>
+        </div>
+
+        <!-- CORNER MARKERS -->
+        <div class="corner-marker cm-tl">[X]</div>
+        <div class="corner-marker cm-tr">[X]</div>
+        <div class="corner-marker cm-bl">[X]</div>
+        <div class="corner-marker cm-br">[X]</div>
+
+        <!-- HUD HEADERS -->
+        <div class="absolute top-[30px] left-[40px] hud-text text-gray-400">SYSTEM [ONLINE]</div>
+        <div class="absolute top-[30px] right-[40px] hud-text text-gray-400">DATA [VAULT]</div>
+        
+        <div class="header-top-center hud-text">
+            <span class="text-white font-bold">* PROJECT GLASS / IMMERSIVE STRATEGY TERMINAL / 2026 *</span><br>
+            <span class="opacity-60 text-[8px]">DB: STRATEGY - ARCHITECTURE - CHURN DIAGNOSTIC</span>
+        </div>
+
+        <!-- SCROLL INDICATOR -->
+        <div class="scroll-indicator hud-text text-center text-[8px]" onclick="scrollNext()">
+            [ SCROLL TO NAVIGATE ]<br>
+            <i class="fas fa-chevron-down mt-2 text-white"></i>
+        </div>
+
+        <!-- LEFT PANEL: RAW NAVIGATION -->
+        <div class="panel-left">
+            <div class="data-label">// SYSTEM_PROTOCOLS</div>
+            <div id="nav-container">
+                <!-- Nav Injected via JS -->
+            </div>
+        </div>
+
+        <!-- CENTER 3D STAGE -->
+        <div class="stage-wrapper" id="stage-wrapper">
+            <div class="target-box" id="3d-target">
+                
+                <div class="bracket bracket-tl"></div>
+                <div class="bracket bracket-tr"></div>
+                <div class="bracket bracket-bl"></div>
+                <div class="bracket bracket-br"></div>
+                
+                <div class="crosshair-center">+</div>
+                <div class="crosshair-marker" style="top: -20px; left: 50%; transform: translateX(-50%);">[Y]</div>
+                <div class="crosshair-marker" style="bottom: -20px; left: 50%; transform: translateX(-50%);">[Y]</div>
+                <div class="crosshair-marker" style="top: 50%; left: -30px; transform: translateY(-50%);">[X]</div>
+                <div class="crosshair-marker" style="top: 50%; right: -30px; transform: translateY(-50%);">[X]</div>
+
+                <div class="content-core" id="content-core">
+                    
+                    <div class="gold-bars-container">
+                        <div class="gold-bars-stage">
+                            <div class="gold-bar-3d gb-bottom-left">
+                                <div class="gb-face gb-front"></div><div class="gb-face gb-back"></div>
+                                <div class="gb-face gb-top"></div><div class="gb-face gb-bottom"></div>
+                                <div class="gb-face gb-left"></div><div class="gb-face gb-right"></div>
+                            </div>
+                            <div class="gold-bar-3d gb-bottom-right">
+                                <div class="gb-face gb-front"></div><div class="gb-face gb-back"></div>
+                                <div class="gb-face gb-top"></div><div class="gb-face gb-bottom"></div>
+                                <div class="gb-face gb-left"></div><div class="gb-face gb-right"></div>
+                            </div>
+                            <div class="gold-bar-3d gb-top-center">
+                                <div class="gb-face gb-front"></div><div class="gb-face gb-back"></div>
+                                <div class="gb-face gb-top"></div><div class="gb-face gb-bottom"></div>
+                                <div class="gb-face gb-left"></div><div class="gb-face gb-right"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="title-3d" id="stage-title">JAR_OVERVIEW</div>
+                    <div class="desc-3d" id="stage-desc">
+                        Rohan is a gig worker in Tier 2 India. He has volatile income, struggles with savings discipline, and distrusts stock markets.
+                    </div>
+                    
+                    <div id="stage-actions" class="grid grid-cols-1 md:grid-cols-2 gap-2 w-full max-w-[460px] mx-auto">
+                        <!-- Actions Injected via JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: STRATEGIC INTEL -->
+        <div class="panel-right">
+            <div class="data-block">
+                <div class="data-label">// PHASE_IDENTIFIER</div>
+                <div class="data-value text-white font-bold" id="stage-subtitle">PHASE 01 // FOUNDATION</div>
+            </div>
+
+            <div class="data-block">
+                <div class="data-label">// VAULT_STATUS</div>
+                <div class="data-value font-bold text-lg" style="color: var(--jar-gold-glow); text-shadow: 0 0 10px rgba(253,224,71,0.5);" id="story-status">STATUS: UNAWARE</div>
+            </div>
+            
+            <div class="data-block">
+                <div class="data-label">// PRIMARY_OBJECTIVE</div>
+                <div class="data-value text-gray-300" id="ctx-obj">
+                    Democratize wealth creation for Bharat via Digital Gold micro-savings.
+                </div>
+            </div>
+
+            <div class="data-block">
+                <div class="data-label">// SYSTEM_METRICS</div>
+                <div id="ctx-metrics" class="space-y-4">
+                    <!-- Metrics Injected -->
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER HUD -->
+        <div class="footer-bottom-center hud-text text-gray-500">
+            JAR.VAULT IS AN IMMERSIVE CREATIVE STRATEGY DESK FOR 2026.<br>
+            DESIGNED TO ELIMINATE THE TRUST GAP BEFORE IT ARRIVES.
+        </div>
+    </div>
+
+    <!-- === RAW TERMINAL VIEWER MODAL === -->
+    <div id="material-viewer" class="modal-overlay" onclick="closeMaterial()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div>[ PAYLOAD_DECRYPTION ]</div>
+                <button onclick="closeMaterial()" class="hover:text-yellow-400 transition-colors">[ ABORT ]</button>
+            </div>
+            
+            <div class="raw-content">
+                <div id="view-simulator" class="hidden w-full max-w-md text-center">
+                    <i class="fas fa-terminal text-4xl text-blue-400 mb-6 animate-pulse" style="text-shadow: 0 0 20px rgba(96,165,250,0.5);"></i>
+                    <h3 class="text-xl text-white mb-4 tracking-[0.2em] font-bold">EXECUTABLE LOCATED</h3>
+                    <p class="text-[10px] text-gray-400 mb-10 leading-loose tracking-[0.1em]">
+                        SYSTEM REQUIRES DEDICATED SANDBOXED ENVIRONMENT TO RUN THIS INTERACTIVE PROTOTYPE.<br>PROCEED TO EXTERNAL TERMINAL.
+                    </p>
+                    <a id="btn-launch-sim" href="#" target="_blank" onclick="closeMaterial()" class="action-btn justify-center text-blue-400 border-blue-500/50 hover:border-blue-400 hover:text-blue-300 w-full text-center">
+                        <span class="text-center w-full">[ INITIATE_SIMULATION ]</span>
+                    </a>
+                </div>
+
+                <div id="view-vault" class="hidden w-full max-w-xl text-left">
+                    <div class="text-[10px] text-red-500 mb-4 tracking-[0.3em] border-b border-gray-800 pb-3 font-bold">
+                        > DECRYPTED_DOCUMENT.PDF
+                    </div>
+                    <h3 class="text-2xl text-white mb-6 tracking-[0.1em] font-bold" id="vault-filename">DOCUMENT NAME</h3>
+                    <div class="text-[11px] text-gray-300 leading-loose border border-gray-700 p-8 mb-8 bg-black/80 shadow-[inset_0_0_20px_rgba(0,0,0,1)]">
+                        <span class="text-gray-600 font-bold">> extracting_summary...</span><br><br>
+                        <span id="vault-summary" class="text-white">Summary extraction...</span>
+                    </div>
+                    <a id="btn-launch-pdf" href="#" target="_blank" onclick="closeMaterial()" class="action-btn justify-center text-white w-full text-center">
+                        <span class="text-center w-full">[ ACCESS_FULL_DOCUMENT ]</span>
+                    </a>
+                </div>
+
+                <div id="view-image" class="hidden w-full flex flex-col items-center justify-center">
+                    <div class="text-[10px] text-green-500 mb-6 tracking-[0.3em] w-full text-left font-bold">> RENDER_VISUAL_ASSET</div>
+                    <img id="img-preview" src="" alt="Visual Material" class="max-w-full max-h-[55vh] object-contain border border-gray-700 bg-black p-3 shadow-[0_0_30px_rgba(0,0,0,0.8)]">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIC -->
+    <script>
+        // --- 0. TERMINAL BOOT SEQUENCE ---
+        const bootLines = [
+            "establishing secure connection... <span class='text-green-500'>[ok]</span>",
+            "authenticating pm credentials... <span class='text-green-500'>[verified]</span>",
+            "initializing 3d rendering engine... <span class='text-green-500'>[ok]</span>",
+            " ",
+            ">> BOOTING <span class='highlight-text'>PROJECT_GLASS</span> STRATEGY TERMINAL...",
+            ">> PRIMARY DIRECTIVE: ELIMINATE DAY-0 TRUST CHURN IN MICRO-SAVINGS.",
+            " ",
+            ">> INDEXING INTERACTIVE MODULES:",
+            "   <span class='text-blue-400'>[1]</span> 3D MASTER JOURNEY MAP (PHASES 01 TO 07)",
+            "   <span class='text-blue-400'>[2]</span> LIVE CHURN SIMULATORS & ROOT CAUSE DIAGNOSTICS",
+            "   <span class='text-blue-400'>[3]</span> SYSTEM ARCHITECTURE MODELS (KAFKA / SAGA PATTERNS)",
+            "   <span class='text-blue-400'>[4]</span> SOLUTION PROTOTYPES (GRAM-FIRST UX & SUBSIDY ALGO)",
+            "   <span class='text-blue-400'>[5]</span> ENCRYPTED DATA VAULT (11 PM STRATEGY DOCUMENTS)",
+            " ",
+            "all modules synthesized successfully.",
+            "terminal environment ready for presentation."
+        ];
+
+        const terminalOutput = document.getElementById('terminal-output');
+        let currentLine = 0;
+        let currentChar = 0;
+        let isTag = false;
+        let textBuffer = "";
+
+        function typeWriter() {
+            if (currentLine < bootLines.length) {
+                let lineStr = bootLines[currentLine];
+                
+                if (currentChar < lineStr.length) {
+                    let char = lineStr.charAt(currentChar);
+                    
+                    if (char === '<') isTag = true;
+                    if (char === '>') {
+                        isTag = false;
+                        textBuffer += char;
+                        currentChar++;
+                        typeWriter();
+                        return;
+                    }
+
+                    textBuffer += char;
+                    currentChar++;
+                    
+                    document.getElementById(`line-${currentLine}`).innerHTML = textBuffer + `<span class="fat-cursor"></span>`;
+                    
+                    let speed = isTag ? 0 : Math.random() * 20 + 10;
+                    setTimeout(typeWriter, speed);
+                } else {
+                    document.getElementById(`line-${currentLine}`).innerHTML = textBuffer;
+                    currentLine++;
+                    currentChar = 0;
+                    textBuffer = "";
+                    
+                    if (currentLine < bootLines.length) {
+                        terminalOutput.innerHTML += `<div id="line-${currentLine}"><span class="fat-cursor"></span></div>`;
+                        setTimeout(typeWriter, 150); 
+                    } else {
+                        document.getElementById('enter-btn-wrapper').classList.add('show');
+                        terminalOutput.innerHTML += `<div class="mt-2"><span class="fat-cursor"></span></div>`;
+                    }
+                }
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            terminalOutput.innerHTML = `<div id="line-0"><span class="fat-cursor"></span></div>`;
+            setTimeout(typeWriter, 500); 
+        });
+
+        function enterTerminal() {
+            document.getElementById('boot-screen').classList.add('hide');
+            setTimeout(() => {
+                initNav();
+                selectPhase(0, true); 
+            }, 800);
+        }
+
+        // --- 1. DATA MODEL ---
+        const fileInsights = {
+            'The_Jar_Engine.pdf': "Details the Three-Stage Value Capture System: Acquisition (Digital Gold) -> Monetization (Lending) -> Retention (Nek Jewellery). Shows the shift from Distributor to Principal Seller.",
+            'Jar_Revenue_Architecture.pdf': "Exposes the Micro-Transaction Paradox. The standalone core is EBITDA positive (+₹15.07 Cr) due to negative working capital and wholesale-retail arbitrage.",
+            'Fintech_Growth_Blueprint (1).pdf': "Maps the 'Frictionless Funnel'. Focuses on the transition to the Account Aggregator framework and the high-velocity Kafka engine.",
+            'Jar_Engineering_Blueprint (2).pdf': "Deep dive into the AWS EKS Cluster. Explains the decoupling of business logic (Micrologic) from infrastructure (Mecha).",
+            'Architecting_Fintech_Value.pdf': "Highlights 'Zero-Anxiety Refunds' via the SAGA pattern, and real-time AML fraud detection (<100ms) using Apache Flink.",
+            'Strategic_Retention_Roadmap.pdf': "Defines the Prioritization Matrix mapping Active Savers (₹60-80 Cr impact) and New Users as the P0 Critical Path.",
+            'User_Growth_Diagnostic.pdf': "Identifies the core 'Anxiety Loop' where users expect a 'Gullak' but experience a volatile asset, leading to system crash (churn).",
+            'Jar_System_Diagnostic.pdf': "A 4-Point Structural Analysis of Churn Mechanics: Strategic Signal Mismatch, Operational Data Obfuscation, Cognitive Error, and Circuit Failure.",
+            'Jar_Trust_Gap_Analysis.pdf': "Exposes the 'Equation of Failure' and 'Missing Education Layer', showing how hidden costs (3% GST + 3% Spread) destroy Day-0 trust.",
+            'User_Retention_Architecture (1).pdf': "Calculates the ROI potential. Shows the mathematical case for pre-emptive education (vaccination against churn) over reactive support."
+        };
+
+        const journeyData = [
+            { 
+                id: 'overview', title: '01_JAR_OVERVIEW', subtitle: 'PHASE 01 // THE FOUNDATION', 
+                obj: 'Democratize wealth creation for Bharat via Digital Gold micro-savings.', 
+                metrics: ['35M+ Active Users', '₹208 Cr Op Revenue', 'Net Status: Profitable'], 
+                storyStatus: 'THE BLANK SLATE', statusColor: 'var(--jar-gold-glow)',
+                storyDesc: 'Rohan is a gig worker in Tier 2 India. He has volatile income, struggles with savings discipline, and distrusts stock markets.', 
+                materials: [
+                    {name: 'The Jar Engine Breakdown', type: 'pdf', file: 'The_Jar_Engine.pdf'}
+                ] 
+            },
+            { 
+                id: 'market', title: '02_MARKET_OPPORTUNITY', subtitle: 'PHASE 02 // MACRO LANDSCAPE', 
+                obj: 'Capture the "Missing Middle" demographic using UPI + Gold as the ultimate cultural moat.', 
+                metrics: ['300M+ UPI Base', '$1.5T Household Gold', 'Frictionless Funnel'], 
+                storyStatus: 'TARGET DEMOGRAPHIC', statusColor: '#60a5fa', 
+                storyDesc: 'Rohan falls exactly into the "Missing Middle". He uses UPI daily for Swiggy and Uber, creating the perfect environment for micro-transactions.', 
+                materials: [
+                    {name: 'Fintech Growth Blueprint', type: 'pdf', file: 'Fintech_Growth_Blueprint (1).pdf'}
+                ] 
+            },
+            { 
+                id: 'revenue', title: '03_REVENUE_ARCHITECTURE', subtitle: 'PHASE 03 // THE ENGINE', 
+                obj: 'Explain the backend microservices, event-driven consistency (Kafka), and margin protection via Saga patterns.', 
+                metrics: ['Kafka Event Bus', 'Saga Pattern Rollbacks', 'Sub-100ms Flink AML'], 
+                storyStatus: 'THE MATRIX (BACKEND)', statusColor: '#c084fc', 
+                storyDesc: 'Behind the scenes, Jar\'s robust architecture prepares to process Rohan\'s future transactions, balancing margin capture with stability.', 
+                materials: [
+                    {name: 'Launch Architecture Simulator', type: 'html', file: 'Jar_Architecture_Interactive_Steps.html'}, 
+                    {name: 'Engineering Blueprint', type: 'pdf', file: 'Jar_Engineering_Blueprint (2).pdf'}, 
+                    {name: 'Architecting Fintech Value', type: 'pdf', file: 'Architecting_Fintech_Value.pdf'}
+                ] 
+            },
+            { 
+                id: 'users', title: '04_USERS_&_PERSONAS', subtitle: 'PHASE 04 // THE AUDIENCE', 
+                obj: 'Segment the user base to identify the P0 (Critical Path) segments: Active Savers and New Users.', 
+                metrics: ['P0: Active Savers', 'P1: Moderate (FD Mind)', 'Risk: Value Mismatch'], 
+                storyStatus: 'PERSONA LOCKED: P0', statusColor: '#fb923c', 
+                storyDesc: 'Rohan is classified as a P0 Passive Saver. His primary pain point will be panic upon seeing principal erosion without context.', 
+                materials: [
+                    {name: 'Strategic Retention Roadmap', type: 'pdf', file: 'Strategic_Retention_Roadmap.pdf'}, 
+                    {name: 'User Growth Diagnostic', type: 'pdf', file: 'User_Growth_Diagnostic.pdf'}
+                ] 
+            },
+            { 
+                id: 'pain', title: '05_THE_TRUST_GAP', subtitle: 'PHASE 05 // THE CHURN CATALYST', 
+                obj: 'Visualize the "Equation of Failure" where Savings Expectation collides with Investment Reality (Spreads + GST).', 
+                metrics: ['Day-0 Trust Drop', '5% Entry Load', 'The "Gullak Trap"'], 
+                storyStatus: 'THE BETRAYAL (SHOCK)', statusColor: '#ef4444', 
+                storyDesc: 'Rohan saves ₹8, sees ₹7.47. He withdraws ₹35 and feels scammed. Churn initiated.', 
+                materials: [
+                    {name: 'Launch 9-Phase Churn Simulator', type: 'html', file: 'Jar_Final_Corrected_Simulator.html'}, 
+                    {name: 'Jar System Diagnostic', type: 'pdf', file: 'Jar_System_Diagnostic.pdf'}, 
+                    {name: 'Jar Trust Gap Analysis', type: 'pdf', file: 'Jar_Trust_Gap_Analysis.pdf'}
+                ] 
+            },
+            { 
+                id: 'solution', title: '06_PROJECT_GLASS', subtitle: 'PHASE 06 // REDEMPTION', 
+                obj: 'Showcase the UI/UX fixes: Day-0 Goldback Subsidy, Gram-First Dashboard, and Transparent Smart Receipts.', 
+                metrics: ['Day-0 Subsidy (CAC)', 'Gram-First UI Shift', 'Pre-Withdrawal Intel'], 
+                storyStatus: 'THE REDEMPTION', statusColor: '#34d399', 
+                storyDesc: 'We rewrite history. Rohan installs Jar (Project Glass). The app subsidizes his first tax and shows clear itemized receipts. He stays.', 
+                materials: [
+                    {name: 'Launch Solution Prototype', type: 'html', file: 'Jar_Solution_Simulator.html'}
+                ] 
+            },
+            { 
+                id: 'metrics', title: '07_METRICS_&_ROI', subtitle: 'PHASE 07 // BUSINESS IMPACT', 
+                obj: 'Project the ROI of the Trust Layer. Tracking D90 retention improvements translating to ₹80 Cr in revenue.', 
+                metrics: ['₹80 Cr Revenue Recov.', 'D90 Retention +15%', 'LTV Expansion: 2x'], 
+                storyStatus: 'LOYALTY SECURED', statusColor: '#10b981', 
+                storyDesc: 'Rohan trusts Jar. Because the math was clear, he increases his auto-save limit and eventually buys physical jewelry via Nek.', 
+                materials: [
+                    {name: 'Execute Trust Engine AI', type: 'html', file: 'Jar_Trust_Engine_Blueprint.html'},
+                    {name: 'Jar Revenue Architecture', type: 'pdf', file: 'Jar_Revenue_Architecture.pdf'}, 
+                    {name: 'Retention Architecture & ROI', type: 'pdf', file: 'User_Retention_Architecture (1).pdf'}
+                ] 
+            }
+        ];
+
+        let activeIdx = 0;
+
+        // --- 2. 3D MOUSE TRACKING ENGINE ---
+        const targetBox = document.getElementById('3d-target');
+        
+        document.addEventListener('mousemove', (e) => {
+            const xAxis = (window.innerWidth / 2 - e.pageX) / 40; 
+            const yAxis = (window.innerHeight / 2 - e.pageY) / 40;
+            targetBox.style.transform = `rotateY(${xAxis}deg) rotateX(${yAxis}deg)`;
+        });
+
+        document.addEventListener('mouseleave', () => {
+            targetBox.style.transform = `rotateY(0deg) rotateX(0deg)`;
+        });
+
+        // --- 3. SCROLL & KEYBOARD CAPTURE FOR NAVIGATION ---
+        let isScrolling = false;
+        
+        document.addEventListener('wheel', (e) => {
+            if (document.getElementById('material-viewer').classList.contains('active')) return;
+            if (!document.getElementById('boot-screen').classList.contains('hide')) return; 
+            if (isScrolling) return;
+
+            if (Math.abs(e.deltaY) > 20) {
+                if (e.deltaY > 0 && activeIdx < journeyData.length - 1) {
+                    isScrolling = true;
+                    selectPhase(activeIdx + 1);
+                    setTimeout(() => isScrolling = false, 700); 
+                } else if (e.deltaY < 0 && activeIdx > 0) {
+                    isScrolling = true;
+                    selectPhase(activeIdx - 1);
+                    setTimeout(() => isScrolling = false, 700);
+                }
+            }
+        }, { passive: true });
+
+        document.addEventListener('keydown', (e) => {
+            if (document.getElementById('material-viewer').classList.contains('active')) return;
+            if (!document.getElementById('boot-screen').classList.contains('hide')) return;
+            if (isScrolling) return;
+            
+            if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                if (activeIdx < journeyData.length - 1) {
+                    isScrolling = true; selectPhase(activeIdx + 1); setTimeout(() => isScrolling = false, 700);
+                }
+            } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                if (activeIdx > 0) {
+                    isScrolling = true; selectPhase(activeIdx - 1); setTimeout(() => isScrolling = false, 700);
+                }
+            }
+        });
+
+        function scrollNext() {
+            if (activeIdx < journeyData.length - 1) selectPhase(activeIdx + 1);
+            else selectPhase(0);
+        }
+
+        // --- 4. UI RENDERING & NAVIGATION ---
+        function initNav() {
+            const navContainer = document.getElementById('nav-container');
+            navContainer.innerHTML = '';
+            journeyData.forEach((p, i) => {
+                const btn = document.createElement('div');
+                btn.className = `nav-item ${i === activeIdx ? 'active' : ''}`;
+                btn.innerHTML = `> ${p.title}`;
+                btn.onclick = () => selectPhase(i);
+                navContainer.appendChild(btn);
+            });
+        }
+
+        function selectPhase(newIdx, isFirstLoad = false) {
+            if (newIdx === activeIdx && !isFirstLoad) return; 
+            activeIdx = newIdx;
+            const data = journeyData[newIdx];
+            
+            initNav();
+
+            const contentCore = document.getElementById('content-core');
+            contentCore.classList.remove('glitching');
+            void contentCore.offsetWidth; 
+            contentCore.classList.add('glitching');
+
+            setTimeout(() => {
+                document.getElementById('stage-subtitle').innerText = data.subtitle;
+                document.getElementById('stage-title').innerText = data.title.substring(3); 
+                document.getElementById('stage-desc').innerText = data.storyDesc;
+                
+                const actions = document.getElementById('stage-actions');
+                actions.innerHTML = '';
+                data.materials.forEach((m) => {
+                    const btn = document.createElement('button');
+                    let colSpanClass = 'w-full';
+                    
+                    btn.className = `action-btn ${colSpanClass}`;
+                    let actionText = 'DECRYPT';
+                    let iconClass = 'fa-file-pdf text-red-400';
+                    
+                    if(m.type === 'html') { actionText = 'EXECUTE'; iconClass = 'fa-rocket text-blue-400'; }
+                    if(m.type === 'img') { actionText = 'RENDER'; iconClass = 'fa-image text-emerald-400'; }
+                    
+                    btn.innerHTML = `<i class="fas ${iconClass} text-lg w-6 text-center shrink-0"></i> <span class="truncate flex-1 text-left">[ ${actionText} ] <span class="text-white ml-1">${m.name.toUpperCase()}</span></span>`;
+                    
+                    // FIXED URL ENCODING HERE
+                    btn.onclick = () => openMaterial(m.file || m.name, m.type, m.name);
+                    
+                    actions.appendChild(btn);
+                });
+
+                const statusEl = document.getElementById('story-status');
+                statusEl.innerText = `STATUS: ${data.storyStatus}`;
+                statusEl.style.color = data.statusColor || 'var(--jar-gold)';
+                statusEl.style.textShadow = `0 0 15px ${data.statusColor || 'var(--jar-gold)'}`;
+
+                document.getElementById('ctx-obj').innerText = data.obj;
+                document.getElementById('ctx-metrics').innerHTML = data.metrics.map(m => `
+                    <div class="data-value">> ${m}</div>
+                `).join('');
+
+            }, isFirstLoad ? 100 : 250); 
+        }
+
+        // --- 5. RAW MODAL VIEWER ---
+        function openMaterial(filename, type, title) {
+            const viewer = document.getElementById('material-viewer');
+            const viewSim = document.getElementById('view-simulator');
+            const viewVault = document.getElementById('view-vault');
+            const viewImg = document.getElementById('view-image');
+            
+            viewer.classList.add('active');
+
+            viewSim.classList.add('hidden');
+            viewVault.classList.add('hidden');
+            viewImg.classList.add('hidden');
+
+            // Encode filename to handle spaces
+            const encodedFilename = encodeURI(filename);
+
+            if (type === 'html') {
+                viewSim.classList.remove('hidden'); 
+                document.getElementById('btn-launch-sim').href = encodedFilename; 
+            } else if (type === 'pdf') {
+                viewVault.classList.remove('hidden');
+                document.getElementById('vault-filename').innerText = filename.toUpperCase();
+                document.getElementById('btn-launch-pdf').href = encodedFilename;
+                document.getElementById('vault-summary').innerText = fileInsights[filename] || "STRATEGIC INTELLIGENCE DECRYPTED. AWAITING MANUAL REVIEW.";
+            } else if (type === 'img') {
+                viewImg.classList.remove('hidden');
+                document.getElementById('img-preview').src = encodedFilename;
+            }
+        }
+
+        function closeMaterial() {
+            document.getElementById('material-viewer').classList.remove('active');
+            setTimeout(() => { document.getElementById('img-preview').src = ""; }, 400);
+        }
+    </script>
+</body>
+</html>

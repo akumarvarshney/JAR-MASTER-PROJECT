@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jar Architecture: Step-by-Step PM Explainer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; overflow-x: hidden;}
+
+        /* Tabs */
+        .tab-btn {
+            padding: 12px 24px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+            color: #94a3b8;
+        }
+        .tab-btn.active {
+            color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+            border-bottom-color: #3b82f6;
+        }
+
+        /* Node Styling */
+        .node {
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 16px;
+            padding: 16px;
+            position: relative;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+        
+        .event-router {
+            background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 50%, #3b82f6 100%);
+            background-size: 200% 100%;
+            animation: flowBackground 3s linear infinite;
+            height: 14px;
+            border-radius: 8px;
+            position: relative;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        @keyframes flowBackground { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+
+        /* Step Activation Classes */
+        .active-blue { border-color: #3b82f6; box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+        .active-green { border-color: #10b981; box-shadow: 0 0 20px rgba(16, 185, 129, 0.3); }
+        .active-yellow { border-color: #eab308; box-shadow: 0 0 20px rgba(234, 179, 8, 0.3); }
+        .active-red { border-color: #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.3); }
+        .active-router { box-shadow: 0 0 25px #8b5cf6; }
+
+        /* Status Labels */
+        .status-badge {
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 4px 8px; border-radius: 6px;
+            position: absolute; top: -12px; right: 10px; opacity: 0; transition: opacity 0.3s;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
+        }
+        .status-badge.show { opacity: 1; }
+
+        .connector { position: absolute; background-color: #334155; z-index: 0; transition: background-color 0.3s ease; }
+        .connector.active-conn { background-color: #3b82f6; box-shadow: 0 0 8px #3b82f6; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <!-- TOP NAV: Tabs -->
+    <div class="bg-gray-900 border-b border-gray-800 flex justify-between items-center px-8 pt-4">
+        <div class="flex gap-4">
+            <button onclick="switchTab('happy')" id="tab-happy" class="tab-btn active flex items-center gap-2">
+                <i class="fas fa-check-circle"></i> Scenario 1: The Perfect Save
+            </button>
+            <button onclick="switchTab('saga')" id="tab-saga" class="tab-btn flex items-center gap-2">
+                <i class="fas fa-shield-alt"></i> Scenario 2: Error Recovery (Saga)
+            </button>
+        </div>
+        <div class="text-xs text-gray-500 font-mono">Jar Architecture Sandbox</div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+
+        <!-- === LEFT PANEL: PM EXPLAINER & STEP CONTROLS === -->
+        <div class="w-full lg:w-[450px] bg-gray-900 border-r border-gray-800 flex flex-col shadow-2xl z-20">
+            
+            <div class="p-6 border-b border-gray-800">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-widest" id="scenario-label">Scenario 1</span>
+                    <span class="bg-blue-900/50 text-blue-400 text-[10px] px-2 py-1 rounded font-mono" id="step-counter">Step 0 / 4</span>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-2" id="explainer-title">System Idle</h2>
+                
+                <!-- The Core PM Translation Box -->
+                <div class="bg-gray-800 rounded-xl p-4 mt-4 border border-gray-700 min-h-[120px]">
+                    <p class="text-sm text-gray-300 leading-relaxed" id="explainer-pm">Click 'Start Flow' to begin the step-by-step transaction walkthrough.</p>
+                </div>
+            </div>
+
+            <div class="p-6 border-b border-gray-800 bg-gray-800/30">
+                <h4 class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-2">Technical Action Under The Hood</h4>
+                <p class="text-xs text-gray-400 font-mono" id="explainer-tech">Awaiting initialization...</p>
+            </div>
+
+            <!-- Manual Controls -->
+            <div class="p-6 mt-auto flex justify-between items-center bg-gray-900">
+                <button onclick="prevStep()" id="btn-prev" class="text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors" disabled>
+                    <i class="fas fa-arrow-left mr-2"></i> Back
+                </button>
+                <button onclick="nextStep()" id="btn-next" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-colors flex items-center gap-2">
+                    Start Flow <i class="fas fa-play"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- === RIGHT PANEL: THE CANVAS === -->
+        <div class="flex-1 relative bg-[#0B1120] p-8 flex flex-col justify-center items-center overflow-y-auto">
+            <div class="absolute inset-0" style="background-image: linear-gradient(#1e293b 1px, transparent 1px), linear-gradient(90deg, #1e293b 1px, transparent 1px); background-size: 30px 30px; opacity: 0.3;"></div>
+
+            <!-- HAPPY PATH CANVAS (Default) -->
+            <div id="canvas-happy" class="relative w-full max-w-4xl h-[600px] mt-12 transition-opacity duration-300">
+                
+                <!-- LAYER 1 -->
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 flex gap-16">
+                    <div class="node w-56 text-center" id="h-node-sync">
+                        <div class="text-3xl text-blue-400 mb-2"><i class="fas fa-university"></i></div>
+                        <h3 class="font-bold text-gray-200">Bank Sync (AA)</h3>
+                        <div class="status-badge bg-blue-500 text-white" id="h-stat-sync">Spend Detected</div>
+                    </div>
+                    <div class="node w-56 text-center" id="h-node-brain">
+                        <div class="text-3xl text-purple-400 mb-2"><i class="fas fa-brain"></i></div>
+                        <h3 class="font-bold text-gray-200">The Brain</h3>
+                        <div class="status-badge bg-purple-500 text-white" id="h-stat-brain">Calculated ₹8</div>
+                    </div>
+                </div>
+
+                <div class="connector w-1 h-12 left-[25%] top-[110px]" id="h-conn-1"></div>
+                <div class="connector w-1 h-12 left-[75%] top-[110px]" id="h-conn-2"></div>
+
+                <!-- LAYER 2 -->
+                <div class="absolute top-[160px] left-0 w-full text-center">
+                    <div class="event-router w-full" id="h-node-router"></div>
+                    <p class="text-xs text-blue-400 font-bold mt-2 uppercase tracking-widest">Kafka Event Router</p>
+                </div>
+
+                <div class="connector w-1 h-12 left-[15%] top-[205px]" id="h-conn-3"></div>
+                <div class="connector w-1 h-12 left-[50%] top-[205px]" id="h-conn-4"></div>
+                <div class="connector w-1 h-12 left-[85%] top-[205px]" id="h-conn-5"></div>
+
+                <!-- LAYER 3 -->
+                <div class="absolute top-[255px] w-full flex justify-between">
+                    <div class="node w-52 text-center" id="h-node-pay">
+                        <div class="text-3xl text-green-400 mb-2"><i class="fas fa-rupee-sign"></i></div>
+                        <h3 class="font-bold text-gray-200">Take Money (UPI)</h3>
+                        <div class="status-badge bg-green-500 text-white" id="h-stat-pay">₹8 Debited</div>
+                    </div>
+                    <div class="node w-52 text-center" id="h-node-db">
+                        <div class="text-3xl text-indigo-400 mb-2"><i class="fas fa-database"></i></div>
+                        <h3 class="font-bold text-gray-200">Ledger (ACID)</h3>
+                        <div class="status-badge bg-indigo-500 text-white" id="h-stat-db">Committed</div>
+                    </div>
+                    <div class="node w-52 text-center" id="h-node-gold">
+                        <div class="text-3xl text-yellow-400 mb-2"><i class="fas fa-cubes"></i></div>
+                        <h3 class="font-bold text-gray-200">Buy Gold (API)</h3>
+                        <div class="status-badge bg-yellow-500 text-black" id="h-stat-gold">Gold Allocated</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SAGA PATH CANVAS (Hidden initially) -->
+            <div id="canvas-saga" class="relative w-full max-w-4xl h-[600px] mt-12 hidden opacity-0 transition-opacity duration-300">
+                <!-- Simplified setup for Saga focus -->
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] text-center">
+                    <div class="event-router w-full" id="s-node-router"></div>
+                    <p class="text-xs text-blue-400 font-bold mt-2 uppercase tracking-widest">Transaction Initiated via Router</p>
+                </div>
+
+                <div class="connector w-1 h-16 left-[20%] top-[40px]" id="s-conn-1"></div>
+                <div class="connector w-1 h-16 left-[80%] top-[40px]" id="s-conn-2"></div>
+
+                <div class="absolute top-[100px] w-full flex justify-between px-[10%]">
+                    <!-- UPI Success -->
+                    <div class="node w-52 text-center" id="s-node-pay">
+                        <div class="text-3xl text-green-400 mb-2"><i class="fas fa-rupee-sign"></i></div>
+                        <h3 class="font-bold text-gray-200">UPI AutoPay</h3>
+                        <div class="status-badge bg-green-500 text-white" id="s-stat-pay">₹8 Debited</div>
+                        <div class="status-badge bg-yellow-500 text-black mt-6" id="s-stat-refund">Refund Initiated</div>
+                    </div>
+                    <!-- Gold Failure -->
+                    <div class="node w-52 text-center" id="s-node-gold">
+                        <div class="text-3xl text-red-400 mb-2"><i class="fas fa-times-circle"></i></div>
+                        <h3 class="font-bold text-gray-200">Refinery API</h3>
+                        <div class="status-badge bg-red-500 text-white" id="s-stat-gold">504 Timeout</div>
+                    </div>
+                </div>
+
+                <div class="connector w-1 h-16 left-[50%] top-[220px]" id="s-conn-3"></div>
+
+                <!-- Ledger / Compensation -->
+                <div class="absolute top-[300px] left-1/2 -translate-x-1/2">
+                    <div class="node w-64 text-center" id="s-node-ledger">
+                        <div class="text-3xl text-indigo-400 mb-2"><i class="fas fa-database"></i></div>
+                        <h3 class="font-bold text-gray-200">System Ledger</h3>
+                        <div class="status-badge bg-red-600 text-white" id="s-stat-ledger">Mismatch Detected!</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- State ---
+        let currentTab = 'happy';
+        let currentStep = 0;
+        const maxStepsHappy = 4;
+        const maxStepsSaga = 4;
+
+        // --- DOM Elements ---
+        const ui = {
+            scenarioLabel: document.getElementById('scenario-label'),
+            stepCounter: document.getElementById('step-counter'),
+            title: document.getElementById('explainer-title'),
+            pm: document.getElementById('explainer-pm'),
+            tech: document.getElementById('explainer-tech'),
+            btnPrev: document.getElementById('btn-prev'),
+            btnNext: document.getElementById('btn-next'),
+            canvasHappy: document.getElementById('canvas-happy'),
+            canvasSaga: document.getElementById('canvas-saga')
+        };
+
+        // --- Content Data ---
+        const flowData = {
+            happy: [
+                { title: "System Idle", pm: "Click 'Start Flow' to step through a successful ₹8 investment.", tech: "Awaiting incoming payload." },
+                {
+                    title: "Step 1: Secure Ingestion",
+                    pm: "<b>Higher Conversion, Less Friction.</b> The system securely receives data that Rohan spent ₹292. We rely on the official Account Aggregator framework, meaning we don't have to ask for scary SMS permissions on Android.",
+                    tech: "Account Aggregator framework delivers {JSON} via encrypted TLS 1.3 stream. No probabilistic Regex scraping.",
+                    action: () => {
+                        document.getElementById('h-node-sync').classList.add('active-blue');
+                        document.getElementById('h-stat-sync').classList.add('show');
+                        document.getElementById('h-conn-1').classList.add('active-conn');
+                    }
+                },
+                {
+                    title: "Step 2: Compute & Route",
+                    pm: "<b>Unlocking Speed.</b> The Brain calculates the ₹8 round-up. Crucially, it drops this instruction onto the 'Event Router' (Kafka). The brain doesn't wait for banks; it just yells 'BUY!' and moves to the next user instantly. This is how we handle scale.",
+                    tech: "Order Service applies Modulo logic: S = (10-(V mod 10)) mod 10. Broadcasts GOLD_PURCHASED event to Kafka topic.",
+                    action: () => {
+                        document.getElementById('h-node-brain').classList.add('active-blue');
+                        document.getElementById('h-stat-brain').classList.add('show');
+                        document.getElementById('h-conn-2').classList.add('active-conn');
+                        document.getElementById('h-node-router').classList.add('active-router');
+                    }
+                },
+                {
+                    title: "Step 3: Parallel Execution",
+                    pm: "<b>No Bottlenecks.</b> The payment (UPI) and the gold purchase happen at the exact same time. They don't block each other. If one is slightly slow, the whole app doesn't freeze for the user.",
+                    tech: "Independent microservices (PG Service, Gold Service) consume the Kafka topic concurrently.",
+                    action: () => {
+                        document.getElementById('h-conn-3').classList.add('active-conn');
+                        document.getElementById('h-conn-5').classList.add('active-conn');
+                        document.getElementById('h-node-pay').classList.add('active-green');
+                        document.getElementById('h-node-gold').classList.add('active-yellow');
+                        document.getElementById('h-stat-pay').classList.add('show');
+                        document.getElementById('h-stat-gold').classList.add('show');
+                    }
+                },
+                {
+                    title: "Step 4: The Final Record",
+                    pm: "<b>Absolute Reliability.</b> The Ledger is the ultimate Source of Truth. It will ONLY update the user's dashboard if it receives confirmation that BOTH the money was taken AND the gold was bought safely.",
+                    tech: "Eventual Consistency achieved. Ledger Service executes ACID commit in PostgreSQL. User DB updated.",
+                    action: () => {
+                        document.getElementById('h-conn-4').classList.add('active-conn');
+                        document.getElementById('h-node-db').classList.add('active-blue');
+                        document.getElementById('h-stat-db').classList.add('show');
+                    }
+                }
+            ],
+            saga: [
+                { title: "System Idle", pm: "Click 'Start Flow' to step through what happens when an external API crashes.", tech: "Awaiting error scenario." },
+                {
+                    title: "Step 1: The Setup",
+                    pm: "The transaction is initiated via the Event Router normally. Both the UPI system and the Gold API are commanded to act.",
+                    tech: "Kafka broadcasts GOLD_PURCHASED event. Consumers acknowledge receipt.",
+                    action: () => {
+                        document.getElementById('s-node-router').classList.add('active-router');
+                        document.getElementById('s-conn-1').classList.add('active-conn');
+                        document.getElementById('s-conn-2').classList.add('active-conn');
+                    }
+                },
+                {
+                    title: "Step 2: The Failure",
+                    pm: "<b>The Nightmare Scenario.</b> We successfully took ₹8 from the user's bank (UPI worked). But the 3rd-party Gold Partner API crashed! The user has lost money but gained no gold. Normally, this generates angry emails and high Support costs.",
+                    tech: "UPI AutoPay returns 200 OK. Refinery API returns 504 Gateway Timeout. System is in an inconsistent state.",
+                    action: () => {
+                        document.getElementById('s-node-pay').classList.add('active-green');
+                        document.getElementById('s-stat-pay').classList.add('show');
+                        document.getElementById('s-node-gold').classList.add('active-red');
+                        document.getElementById('s-stat-gold').classList.add('show');
+                    }
+                },
+                {
+                    title: "Step 3: Anomaly Detected",
+                    pm: "The Ledger realizes something is wrong. It sees 'Money In' but no 'Gold Bought'. Instead of getting stuck, it automatically fires an alarm.",
+                    tech: "Ledger Service identifies state mismatch. Traditional 2-Phase Commits are too slow here.",
+                    action: () => {
+                        document.getElementById('s-conn-3').classList.add('active-conn');
+                        document.getElementById('s-node-ledger').classList.add('active-red');
+                        document.getElementById('s-stat-ledger').classList.add('show');
+                    }
+                },
+                {
+                    title: "Step 4: The Auto-Refund (Saga)",
+                    pm: "<b>Zero-Ops Customer Support.</b> The system automatically issues a 'Compensating Transaction' (a refund). The user instantly gets their ₹8 back with a message: 'Refunded due to technical error'. Trust is preserved without human intervention.",
+                    tech: "Saga Pattern executes 'Compensating Transaction'. Command sent to PG Service to initiate Refund via UPI.",
+                    action: () => {
+                        document.getElementById('s-node-pay').classList.replace('active-green', 'active-yellow');
+                        document.getElementById('s-stat-pay').classList.remove('show');
+                        document.getElementById('s-stat-refund').classList.add('show');
+                        document.getElementById('s-node-ledger').classList.replace('active-red', 'active-blue');
+                        document.getElementById('s-stat-ledger').innerText = "State Reconciled";
+                    }
+                }
+            ]
+        };
+
+        // --- Logic ---
+
+        function resetCanvas(type) {
+            const prefix = type === 'happy' ? 'h-' : 's-';
+            // Clear active nodes
+            document.querySelectorAll(`[id^="${prefix}node-"]`).forEach(el => {
+                el.className = el.className.replace(/active-\w+/g, '');
+            });
+            // Clear connectors
+            document.querySelectorAll(`[id^="${prefix}conn-"]`).forEach(el => {
+                el.classList.remove('active-conn');
+            });
+            // Hide stats
+            document.querySelectorAll(`[id^="${prefix}stat-"]`).forEach(el => {
+                el.classList.remove('show');
+            });
+            
+            // Specific Saga Resets
+            if(type === 'saga') {
+                document.getElementById('s-stat-ledger').innerText = "Mismatch Detected!";
+            }
+        }
+
+        function updateUI() {
+            const maxSteps = currentTab === 'happy' ? maxStepsHappy : maxStepsSaga;
+            const data = flowData[currentTab][currentStep];
+
+            ui.stepCounter.innerText = `Step ${currentStep} / ${maxSteps}`;
+            ui.title.innerText = data.title;
+            ui.pm.innerHTML = data.pm;
+            ui.tech.innerText = data.tech;
+
+            // Button States
+            ui.btnPrev.disabled = currentStep === 0;
+            if (currentStep === maxSteps) {
+                ui.btnNext.disabled = true;
+                ui.btnNext.innerHTML = 'Flow Complete <i class="fas fa-check ml-2"></i>';
+                ui.btnNext.classList.replace('bg-blue-600', 'bg-green-600');
+            } else {
+                ui.btnNext.disabled = false;
+                ui.btnNext.innerHTML = currentStep === 0 ? 'Start Flow <i class="fas fa-play ml-2"></i>' : 'Next Step <i class="fas fa-arrow-right ml-2"></i>';
+                ui.btnNext.classList.replace('bg-green-600', 'bg-blue-600');
+            }
+
+            // Execute Animation Action
+            if (currentStep > 0 && data.action) {
+                data.action();
+            }
+        }
+
+        function nextStep() {
+            const maxSteps = currentTab === 'happy' ? maxStepsHappy : maxStepsSaga;
+            if (currentStep < maxSteps) {
+                currentStep++;
+                updateUI();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 0) {
+                // To safely reverse, we must rebuild state from 0 to current-1
+                const targetStep = currentStep - 1;
+                currentStep = 0;
+                resetCanvas(currentTab);
+                
+                while(currentStep < targetStep) {
+                    currentStep++;
+                    if(flowData[currentTab][currentStep].action) flowData[currentTab][currentStep].action();
+                }
+                updateUI();
+            }
+        }
+
+        function switchTab(tabId) {
+            currentTab = tabId;
+            currentStep = 0;
+
+            // Update Tab UI
+            document.getElementById('tab-happy').classList.toggle('active', tabId === 'happy');
+            document.getElementById('tab-saga').classList.toggle('active', tabId === 'saga');
+            ui.scenarioLabel.innerText = tabId === 'happy' ? 'Scenario 1: Happy Path' : 'Scenario 2: Saga Rollback';
+
+            // Switch Canvas Visibility
+            if (tabId === 'happy') {
+                ui.canvasSaga.classList.replace('opacity-100', 'opacity-0');
+                setTimeout(() => {
+                    ui.canvasSaga.classList.add('hidden');
+                    ui.canvasHappy.classList.remove('hidden');
+                    setTimeout(() => ui.canvasHappy.classList.replace('opacity-0', 'opacity-100'), 50);
+                }, 300);
+            } else {
+                ui.canvasHappy.classList.replace('opacity-100', 'opacity-0');
+                setTimeout(() => {
+                    ui.canvasHappy.classList.add('hidden');
+                    ui.canvasSaga.classList.remove('hidden');
+                    setTimeout(() => ui.canvasSaga.classList.replace('opacity-0', 'opacity-100'), 50);
+                }, 300);
+            }
+
+            resetCanvas('happy');
+            resetCanvas('saga');
+            updateUI();
+        }
+
+        // Init
+        updateUI();
+
+    </script>
+</body>
+</html>
