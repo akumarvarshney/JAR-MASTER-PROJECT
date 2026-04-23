@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jar Complete User Journey: Final</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; min-height: 100vh; }
+
+        /* Setup Modal */
+        .setup-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.95); z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .setup-card {
+            background: white; padding: 2rem; border-radius: 1.5rem;
+            width: 90%; max-width: 600px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;
+        }
+        .upload-box {
+            border: 2px dashed #cbd5e1; padding: 1.5rem; border-radius: 1rem; cursor: pointer; transition: all 0.2s;
+        }
+        .upload-box:hover { border-color: #3b82f6; background: #eff6ff; }
+        .upload-box.selected { border-color: #22c55e; background: #f0fdf4; }
+
+        /* Phone Frame */
+        .phone-frame {
+            width: 360px; height: 740px; border-radius: 40px;
+            border: 12px solid #1e293b; background: #000;
+            position: relative; overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); margin: 0 auto; flex-shrink: 0;
+        }
+        .notch {
+            position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            width: 140px; height: 24px; background: #1e293b;
+            border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; z-index: 100;
+        }
+
+        /* Screens */
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.5s ease;
+            background: white; display: flex; flex-direction: column;
+            pointer-events: none; opacity: 0; transform: translateX(20%); z-index: 0;
+        }
+        .screen.active { pointer-events: auto; opacity: 1; transform: translateX(0); z-index: 10; }
+
+        /* SCROLL PADDING FIX: Ensures content is never hidden behind the user bubble */
+        .scroll-content {
+            padding-bottom: 160px !important; /* Large padding to clear overlay */
+        }
+
+        /* Avatars */
+        .avatar-pm {
+            width: 100px; height: 100px; border-radius: 50%; border: 4px solid white;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); object-fit: cover; object-position: top;
+        }
+        .avatar-user {
+            width: 60px; height: 60px; border-radius: 50%; border: 3px solid white;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); object-fit: cover; object-position: top;
+        }
+
+        /* Speech Bubbles */
+        .speech-bubble {
+            position: relative; background: #fff; border-radius: 1rem; padding: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); font-family: 'Comic Neue', cursive; border: 2px solid #e2e8f0;
+        }
+        .speech-bubble-user { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+        .speech-bubble-pm { background: #fff; border-left: 4px solid #ef4444; }
+
+        .btn-pulse { animation: pulse-ring 2s infinite; }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+
+        /* User Overlay - Z-Index Management */
+        .user-overlay {
+            position: absolute; bottom: 20px; left: 10px; right: 10px; 
+            z-index: 50; /* High z-index to float above content */
+            display: flex; align-items: flex-end; gap: 10px;
+            pointer-events: none; /* Allows clicks to pass through empty space */
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        .hidden { opacity: 0; transform: translateY(10px); }
+
+        .notification-toast {
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: translateY(-200%);
+        }
+        .notification-toast.show { transform: translateY(0); }
+
+        .calc-overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 40;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        .calc-overlay.show { opacity: 1; pointer-events: auto; }
+    </style>
+</head>
+<body class="flex flex-col lg:flex-row items-start justify-center p-4 lg:p-8 gap-8 overflow-x-hidden">
+
+    <!-- === SETUP MODAL === -->
+    <div id="setup-screen" class="setup-overlay">
+        <div class="setup-card">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Jar Complete Lifecycle</h1>
+            <p class="text-gray-500 mb-8">Simulation covering all 9 phases: Discovery to Churn.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div class="upload-box" onclick="document.getElementById('input-user').click()">
+                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3"><i class="fas fa-user text-blue-500 text-2xl"></i></div>
+                    <h3 class="font-bold text-gray-800">The User</h3>
+                    <p id="label-user" class="text-xs text-gray-400 mt-1">Upload Image</p>
+                    <input type="file" id="input-user" class="hidden" accept="image/*" onchange="previewImage(this, 'user')">
+                </div>
+                <div class="upload-box" onclick="document.getElementById('input-pm').click()">
+                    <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3"><i class="fas fa-id-badge text-red-500 text-2xl"></i></div>
+                    <h3 class="font-bold text-gray-800">The PM</h3>
+                    <p id="label-pm" class="text-xs text-gray-400 mt-1">Upload Image</p>
+                    <input type="file" id="input-pm" class="hidden" accept="image/*" onchange="previewImage(this, 'pm')">
+                </div>
+            </div>
+
+            <button onclick="startSimulation()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 transition-transform active:scale-95">
+                Start Full Journey <i class="fas fa-play ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- === LEFT PANEL: PM Narrator === -->
+    <div class="w-full lg:w-[400px] lg:sticky lg:top-8 flex flex-col gap-6">
+        <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 relative mt-12">
+            <div class="absolute -top-12 left-6">
+                <img id="display-pm" src="https://api.dicebear.com/9.x/avataaars/svg?seed=Felix&clothing=graphicShirt&clothingColor=red&facialHair=mustache&top=shortCurly" class="avatar-pm bg-red-50"> 
+            </div>
+
+            <div class="mt-10">
+                <div class="flex items-center gap-2 mb-2">
+                    <span id="pm-phase-tag" class="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">Phase 1</span>
+                    <span id="pm-stage" class="text-xs font-bold text-gray-400 uppercase">Discovery</span>
+                </div>
+                <h2 id="pm-title" class="text-xl font-bold text-gray-800 mb-2">The Promise</h2>
+                <div class="speech-bubble speech-bubble-pm">
+                    <p id="pm-dialogue" class="text-sm text-gray-700 leading-relaxed">
+                        "User sees the ad: 'Save Automatically'. The mental model is simple: <b>A safe piggy bank.</b> <br>Trust level is High."
+                    </p>
+                </div>
+                
+                <div class="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-4">
+                    <div><div class="text-[10px] text-gray-400 uppercase">Trust Level</div><div id="pm-metric-1" class="text-sm font-bold text-green-600">High</div></div>
+                    <div><div class="text-[10px] text-gray-400 uppercase">Expectation</div><div id="pm-metric-2" class="text-sm font-bold text-gray-600">100% Return</div></div>
+                </div>
+            </div>
+        </div>
+        <button onclick="location.reload()" class="text-xs text-gray-400 hover:text-gray-600 underline text-center">Reset Simulation</button>
+    </div>
+
+    <!-- === RIGHT PANEL: Phone === -->
+    <div class="phone-frame">
+        <div class="notch"></div>
+
+        <!-- SCREEN 1: Phase 1 (Discovery - Insta) -->
+        <div id="screen-1" class="screen active bg-white">
+            <div class="pt-10 px-4 pb-2 border-b flex justify-between items-center"><h3 class="font-bold text-lg font-serif italic">Instagram</h3><i class="fas fa-paper-plane"></i></div>
+            <div class="flex-1 overflow-y-auto scroll-content">
+                <div class="p-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <div class="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center font-bold text-black text-xs">J</div>
+                        <div class="text-sm font-bold">jarapp_hq <span class="text-blue-500 text-xs">Sponsored</span></div>
+                    </div>
+                    <div class="bg-gray-900 rounded-lg h-64 flex flex-col items-center justify-center text-center p-6 mb-3 relative overflow-hidden">
+                        <div class="absolute inset-0 bg-gradient-to-br from-yellow-600 to-yellow-900 opacity-50"></div>
+                        <i class="fas fa-coins text-4xl text-yellow-400 mb-4 relative z-10"></i>
+                        <h2 class="text-2xl font-bold text-white relative z-10">Save Automatically!</h2>
+                        <p class="text-sm text-gray-200 mt-2 relative z-10">Invest spare change in Gold.</p>
+                    </div>
+                    <button id="btn-install" class="w-full bg-blue-500 text-white font-bold py-2 rounded-lg mb-4 btn-pulse">Install App</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN 2: Phase 1 (Account Creation) -->
+        <div id="screen-2" class="screen bg-white">
+            <div class="pt-12 px-6 flex flex-col h-full scroll-content overflow-y-auto">
+                <div class="w-12 h-12 bg-yellow-500 rounded-xl flex items-center justify-center mb-6 text-black font-bold text-xl">J</div>
+                <h2 class="text-2xl font-bold text-gray-900 mb-2">Welcome to Jar</h2>
+                <p class="text-sm text-gray-500 mb-8">Enter your number to start saving.</p>
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-4">
+                    <div class="text-xs text-gray-400 mb-1">Mobile Number</div>
+                    <div class="font-mono text-lg text-gray-900">+91 98765 43210</div>
+                </div>
+                <div id="otp-container" class="hidden mb-6 flex gap-3 justify-center">
+                    <div class="w-10 h-10 border-b-2 border-gray-300 text-center text-xl font-bold pt-1">4</div>
+                    <div class="w-10 h-10 border-b-2 border-gray-300 text-center text-xl font-bold pt-1">8</div>
+                    <div class="w-10 h-10 border-b-2 border-gray-300 text-center text-xl font-bold pt-1">2</div>
+                    <div class="w-10 h-10 border-b-2 border-gray-300 text-center text-xl font-bold pt-1">1</div>
+                </div>
+                <button id="btn-otp" class="w-full bg-gray-900 text-white font-bold py-3 rounded-xl mt-auto mb-8">Get OTP</button>
+            </div>
+        </div>
+
+        <!-- SCREEN 3: Phase 1 (Permissions) -->
+        <div id="screen-3" class="screen bg-white">
+            <div class="flex-1 p-6 flex flex-col justify-center items-center scroll-content overflow-y-auto">
+                <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-6"><i class="fas fa-fingerprint text-blue-600 text-3xl"></i></div>
+                <h2 class="text-xl font-bold text-center mb-2">Enable Auto-Save</h2>
+                <p class="text-center text-gray-500 mb-8 text-sm px-4">To automate savings, Jar needs secure access.</p>
+                <div class="w-full space-y-4 mb-8">
+                    <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <div class="w-8 h-8 bg-white rounded-full flex items-center justify-center border border-gray-200"><i class="fas fa-sms text-gray-400"></i></div>
+                        <div><div class="font-bold text-sm">Read SMS</div><div class="text-xs text-gray-400">To detect spend amounts</div></div>
+                        <i class="fas fa-check-circle text-green-500 ml-auto"></i>
+                    </div>
+                    <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <div class="w-8 h-8 bg-white rounded-full flex items-center justify-center border border-gray-200"><i class="fas fa-sync-alt text-gray-400"></i></div>
+                        <div><div class="font-bold text-sm">UPI AutoPay</div><div class="text-xs text-gray-400">To debit savings automatically</div></div>
+                        <i class="fas fa-check-circle text-green-500 ml-auto"></i>
+                    </div>
+                </div>
+                <button id="btn-allow" class="w-full bg-yellow-500 text-black font-bold py-3 rounded-xl shadow-lg">Allow & Connect Bank</button>
+            </div>
+        </div>
+
+        <!-- SCREEN 4: Phase 2 (Trigger) -->
+        <div id="screen-4" class="screen bg-orange-50">
+            <div class="pt-10 px-5 pb-4 bg-white shadow-sm flex justify-between items-center z-20">
+                <div class="flex items-center gap-2"><div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-xl">Z</div><span class="font-bold text-gray-800">Zwiggy</span></div>
+            </div>
+            <div class="flex-1 p-5 flex flex-col justify-center relative scroll-content overflow-y-auto">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mb-6">
+                    <div class="flex justify-between mb-2"><span class="text-gray-600">Order Total</span><span class="text-gray-900 font-bold">₹292.00</span></div>
+                    <div class="h-px bg-gray-100 w-full mb-4"></div>
+                    <div class="flex items-center gap-3"><i class="fas fa-university text-gray-400"></i><span class="text-xs text-gray-500">UPI ending **88</span></div>
+                </div>
+                <button id="btn-pay" class="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 relative cursor-pointer z-20">Pay ₹292.00</button>
+            </div>
+            <!-- Jar Logic Overlay -->
+            <div id="logic-overlay" class="calc-overlay">
+                <div class="bg-white p-6 rounded-2xl text-center max-w-[80%]">
+                    <div class="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-4 text-black font-bold text-xl">J</div>
+                    <h3 class="font-bold text-gray-900 mb-4">Jar Detected Payment</h3>
+                    <div class="flex items-center justify-center gap-2 text-xl font-mono text-gray-600 mb-2"><span>₹300</span><span>-</span><span>₹292</span></div>
+                    <div class="h-px bg-gray-200 w-full mb-2"></div>
+                    <div class="text-3xl font-bold text-green-600 mb-4">= ₹8.00</div>
+                    <p class="text-xs text-gray-500">Round-up calculated. Ready to save.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN 5: Phase 3 (Auto-Debit) - PADDING FIX APPLIED -->
+        <div id="screen-5" class="screen bg-gray-900">
+            <!-- Ensure padding bottom is large (160px) so content pushes up above overlay -->
+            <div class="flex-1 flex flex-col items-center justify-center p-6 scroll-content overflow-y-auto" style="padding-bottom: 160px;">
+                <div class="text-gray-400 text-sm mb-8">Tuesday, 10:42 AM</div>
+                <div class="w-full bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-lg animate-pulse">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white"><i class="fas fa-university"></i></div>
+                        <div class="flex-1">
+                            <div class="flex justify-between"><span class="font-bold text-white text-sm">HDFC Bank</span><span class="text-xs text-gray-400">Now</span></div>
+                            <p class="text-sm text-gray-200 mt-1">₹8.00 debited via UPI AutoPay for Jar Savings.</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Button has margin top auto, but padding forces it up -->
+                <button id="btn-open-jar" class="w-full mt-12 bg-yellow-500 text-black font-bold py-3 rounded-xl shadow-lg relative z-20">Open Jar App</button>
+            </div>
+        </div>
+
+        <!-- SCREEN 6: Phase 4 & 5 (First Crack) -->
+        <div id="screen-6" class="screen bg-white">
+            <div class="pt-10 px-5 pb-3 border-b border-gray-100 flex items-center gap-3"><span class="font-bold text-gray-900">Transaction Details</span></div>
+            <div class="flex-1 p-5 overflow-y-auto scroll-content">
+                <div class="flex items-center justify-between mb-6 bg-gray-50 p-4 rounded-xl">
+                    <div class="text-center"><div class="text-xs text-gray-500">You Paid</div><div class="text-xl font-bold text-gray-900">₹8.00</div></div>
+                    <i class="fas fa-arrow-right text-gray-300"></i>
+                    <div class="text-center"><div class="text-xs text-gray-500">Gold Bought</div><div class="text-xl font-bold text-red-600">₹7.47</div></div>
+                </div>
+                <h3 class="text-xs font-bold text-gray-500 uppercase mb-3">Where did ₹0.53 go?</h3>
+                <div class="border border-gray-200 rounded-xl overflow-hidden">
+                    <div class="p-4 border-b border-gray-100 flex justify-between items-center">
+                        <div><div class="text-sm font-bold text-gray-800">GST (3%)</div><div class="text-[10px] text-gray-400">Govt Tax</div></div><div class="text-sm font-bold text-red-500">- ₹0.24</div>
+                    </div>
+                    <div class="p-4 flex justify-between items-center">
+                        <div><div class="text-sm font-bold text-gray-800">Partner Spread</div><div class="text-[10px] text-gray-400">Buy vs Sell Margin</div></div><div class="text-sm font-bold text-red-500">- ₹0.29</div>
+                    </div>
+                </div>
+                <div class="mt-6 bg-yellow-50 p-4 rounded-xl border border-yellow-100"><p class="text-xs text-yellow-800 italic">"Wait... I just lost money immediately? Breakdown Point #1."</p></div>
+                <button id="btn-fast-forward" class="w-full mt-6 bg-gray-800 text-white font-bold py-3 rounded-xl">Fast Forward 1 Month <i class="fas fa-forward ml-2"></i></button>
+            </div>
+        </div>
+
+        <!-- SCREEN 7: Phase 6 & 7 (The Pattern) -->
+        <div id="screen-7" class="screen bg-[#0F172A]">
+            <div class="pt-10 px-6 pb-2 flex justify-between items-center">
+                <div class="flex items-center gap-2"><div class="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-black font-bold font-serif">J</div><span class="text-white font-bold">Jar</span></div>
+            </div>
+            <div class="flex-1 p-5 overflow-y-auto scroll-content">
+                <div class="text-yellow-500 text-xs font-bold uppercase mb-4">Month 1 Summary</div>
+                <div class="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-xl mb-6">
+                    <div class="text-xs text-gray-400 mb-1">Current Value</div>
+                    <div class="flex items-baseline gap-2 mb-6">
+                        <span class="text-3xl font-bold text-white">₹480.00</span>
+                        <span class="text-xs text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded font-medium"><i class="fas fa-arrow-down"></i> ₹20 Loss</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><div class="text-[10px] text-gray-500 uppercase">Total Saved</div><div class="text-sm font-medium text-gray-300">₹500.00</div></div>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div class="bg-red-900/20 p-3 rounded-lg flex justify-between border border-red-900/30">
+                        <span class="text-xs text-gray-300">Day 1</span> <span class="text-xs text-red-400">Inv ₹8 -> Val ₹7.47</span>
+                    </div>
+                    <div class="bg-red-900/20 p-3 rounded-lg flex justify-between border border-red-900/30">
+                        <span class="text-xs text-gray-300">Day 2</span> <span class="text-xs text-red-400">Inv ₹10 -> Val ₹9.32</span>
+                    </div>
+                    <div class="bg-red-900/20 p-3 rounded-lg flex justify-between border border-red-900/30">
+                        <span class="text-xs text-gray-300">Day 30</span> <span class="text-xs text-red-400">Inv ₹50 -> Val ₹46.50</span>
+                    </div>
+                </div>
+                <button id="btn-try-withdraw" class="w-full mt-6 bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl">Withdraw Funds</button>
+            </div>
+        </div>
+
+        <!-- SCREEN 8: Phase 8 & 9 (The Exit) -->
+        <div id="screen-8" class="screen bg-white">
+            <div class="pt-10 px-5 pb-3 border-b border-gray-100 flex items-center gap-3"><span class="font-bold text-gray-900">Withdrawal</span></div>
+            <div class="flex-1 p-5 overflow-y-auto scroll-content">
+                <div class="text-center mb-6 mt-4">
+                    <p class="text-gray-500 text-xs uppercase font-bold">You can withdraw</p>
+                    <h2 class="text-4xl font-bold text-gray-900">₹465.00</h2>
+                    <p class="text-xs text-red-500 mt-2 font-medium">Original Investment: ₹500.00</p>
+                </div>
+                <div class="bg-red-50 p-4 rounded-xl border border-red-100 mb-6">
+                    <div class="flex gap-3">
+                        <i class="fas fa-exclamation-triangle text-red-500 mt-1"></i>
+                        <div>
+                            <h4 class="text-sm font-bold text-red-800">Why so low?</h4>
+                            <p class="text-xs text-red-700 mt-1">Gold Buy Price > Sell Price. This gap (Spread) combined with GST creates a permanent loss on short term withdrawals.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-xl mb-6 text-center">
+                    <h4 class="text-sm font-bold text-gray-800">Trust Breakdown Point #4</h4>
+                    <p class="text-xs text-gray-500">"I lost ₹35 by saving money? Scam."</p>
+                </div>
+                <button class="w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-lg">Confirm Withdrawal & Delete App</button>
+            </div>
+        </div>
+
+        <!-- USER OVERLAY -->
+        <div id="user-overlay" class="user-overlay hidden">
+            <img id="display-user" src="https://api.dicebear.com/9.x/avataaars/svg?seed=Rohan&clothing=hoodie&clothingColor=gray&top=shaggyMullet&accessories=prescription02&skinColor=brown" 
+                 class="avatar-user bg-gray-200">
+            <div class="speech-bubble speech-bubble-user flex-1">
+                <p id="user-dialogue" class="text-xs font-bold">...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIC -->
+    <script>
+        function previewImage(input, type) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById(`display-${type}`).src = e.target.result;
+                    input.parentElement.classList.add('selected');
+                    document.getElementById(`label-${type}`).innerText = "Loaded!";
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function startSimulation() {
+            document.getElementById('setup-screen').style.display = 'none';
+            updateNarrative(0);
+        }
+
+        const screens = [
+            document.getElementById('screen-1'),
+            document.getElementById('screen-2'),
+            document.getElementById('screen-3'),
+            document.getElementById('screen-4'),
+            document.getElementById('screen-5'),
+            document.getElementById('screen-6'),
+            document.getElementById('screen-7'),
+            document.getElementById('screen-8')
+        ];
+        
+        const pmDialogue = document.getElementById('pm-dialogue');
+        const pmTitle = document.getElementById('pm-title');
+        const pmPhaseTag = document.getElementById('pm-phase-tag');
+        const pmStage = document.getElementById('pm-stage');
+        const pmMetric1 = document.getElementById('pm-metric-1');
+        const pmMetric2 = document.getElementById('pm-metric-2');
+        const userOverlay = document.getElementById('user-overlay');
+        const userDialogue = document.getElementById('user-dialogue');
+
+        // Buttons
+        const btnInstall = document.getElementById('btn-install');
+        const btnOtp = document.getElementById('btn-otp');
+        const btnAllow = document.getElementById('btn-allow');
+        const btnPay = document.getElementById('btn-pay');
+        const btnOpenJar = document.getElementById('btn-open-jar');
+        const btnFastForward = document.getElementById('btn-fast-forward');
+        const btnTryWithdraw = document.getElementById('btn-try-withdraw');
+
+        const steps = [
+            { // Screen 1: Discovery
+                pm: { phase: 'Phase 1', title: 'The Hook', dialogue: `"User sees 'Save Automatically'. Mental Model: Safe Piggy Bank. <br><b>Trust Level: High.</b>"`, stage: 'Discovery', m1: 'High', m1Class: 'text-green-600', m2: 'Curiosity' },
+                user: { dialogue: `"Save while I sleep? Sounds perfect. Installing..."` }
+            },
+            { // Screen 2: OTP
+                pm: { phase: 'Phase 1', title: 'Commitment', dialogue: `"User enters phone & OTP. They are investing effort now. They want this to work. <br><b>Mental State:</b> Committed."`, stage: 'Install', m1: 'High', m1Class: 'text-green-600', m2: 'Action' },
+                user: { dialogue: `"Okay, verifying number. Let's get started."` }
+            },
+            { // Screen 3: Permissions
+                pm: { phase: 'Phase 1', title: 'Blind Trust', dialogue: `"CRITICAL STEP. User grants 'Read SMS' and 'AutoPay'. They think it's for saving. They don't realize this enables the 'invisible deductions' later."`, stage: 'Permissions', m1: 'High', m1Class: 'text-green-600', m2: 'Vulnerable' },
+                user: { dialogue: `"Allows SMS and AutoPay. It's safe, right? It's just savings."` }
+            },
+            { // Screen 4: Trigger
+                pm: { phase: 'Phase 2', title: 'The Trigger', dialogue: `"User spends on Swiggy. Jar detects it. User expects ₹8 saved. <br><b>Expectation Baseline:</b> 1:1 Value."`, stage: 'Detection', m1: 'High', m1Class: 'text-green-600', m2: 'Neutral' },
+                user: { dialogue: `"Ordering dinner. Jar should save ₹8 for me."` }
+            },
+            { // Screen 4: Logic Overlay
+                pm: { phase: 'Phase 2', title: 'The Calculation', dialogue: `"Jar calculates round-up: ₹300 - ₹292 = ₹8. <br>System prepares to debit."`, stage: 'Logic', m1: 'High', m1Class: 'text-green-600', m2: 'Neutral' },
+                user: { dialogue: `"Cool, ₹8 is a small amount. I won't even miss it."` }
+            },
+            { // Screen 5: Debit
+                pm: { phase: 'Phase 3', title: 'Auto-Debit Execution', dialogue: `"₹8 debited via UPI. <br><b>User Reaction:</b> 'Okay, saving feature worked.' <br>Trust is still intact here."`, stage: 'Debit', m1: 'High', m1Class: 'text-green-600', m2: 'Validation' },
+                user: { dialogue: `"Nice! I just got the SMS. Saving is automatic."` }
+            },
+            { // Screen 6: First Breakdown
+                pm: { phase: 'Phase 4', title: 'Trust Crack #1', dialogue: `"<b>CRITICAL MOMENT.</b> ₹8 Debited, but only ₹7.47 Invested. <br>Breakdown: GST (3%) & Spread. <br>User feels cheated."`, stage: 'The Shock', m1: 'Falling', m1Class: 'text-yellow-600', m2: 'Confusion' },
+                user: { dialogue: `"Wait... ₹8 deducted, but only ₹7.47 invested? Where did ₹0.53 go??"` }
+            },
+            { // Screen 7: Pattern
+                pm: { phase: 'Phase 6 & 7', title: 'The Pattern', dialogue: `"One Month Later. Total Saved: ₹500. Total Value: ₹480. <br>User perception: 'I am LOSING money by saving.' <br><b>Trust Breakdown Point #2 & #3.</b>"`, stage: 'Pattern', m1: 'Critical', m1Class: 'text-red-500', m2: 'Anger' },
+                user: { dialogue: `"I'm losing money every single day. This isn't saving, it's spending."` }
+            },
+            { // Screen 8: Withdrawal
+                pm: { phase: 'Phase 8 & 9', title: 'The Final Blow', dialogue: `"User tries to withdraw. Sell Price is even lower. <br>Withdrawal: ₹465 (Loss of ₹35). <br><b>Trust Breakdown Point #4. Result: Churn.</b>"`, stage: 'Churn', m1: 'Broken', m1Class: 'text-red-700', m2: 'Exit' },
+                user: { dialogue: `"I lost ₹35?? This is a scam. I'm deleting this app right now."` }
+            }
+        ];
+
+        function updateNarrative(stepIndex) {
+            const data = steps[stepIndex];
+            pmPhaseTag.innerText = data.pm.phase;
+            pmTitle.innerText = data.pm.title;
+            pmDialogue.innerHTML = data.pm.dialogue;
+            pmStage.innerText = data.pm.stage;
+            pmMetric1.innerText = data.pm.m1;
+            pmMetric1.className = `text-sm font-bold ${data.pm.m1Class}`;
+            pmMetric2.innerText = data.pm.m2;
+            userOverlay.classList.remove('hidden');
+            userDialogue.innerText = data.user.dialogue;
+        }
+
+        function setActiveScreen(index) {
+            screens.forEach((screen, i) => {
+                if (i === index) screen.classList.add('active');
+                else screen.classList.remove('active');
+            });
+        }
+
+        btnInstall.addEventListener('click', () => {
+            btnInstall.innerText = "Installing...";
+            setTimeout(() => { setActiveScreen(1); updateNarrative(1); }, 1000);
+        });
+
+        btnOtp.addEventListener('click', () => {
+            if(btnOtp.innerText === "Get OTP") {
+                document.getElementById('otp-container').classList.remove('hidden');
+                btnOtp.innerText = "Verify & Continue";
+            } else {
+                setActiveScreen(2); updateNarrative(2);
+            }
+        });
+
+        btnAllow.addEventListener('click', () => { setActiveScreen(3); updateNarrative(3); });
+
+        btnPay.addEventListener('click', () => {
+            btnPay.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            setTimeout(() => { 
+                document.getElementById('logic-overlay').classList.add('show');
+                updateNarrative(4);
+            }, 1000);
+            setTimeout(() => { 
+                document.getElementById('logic-overlay').classList.remove('show');
+                setActiveScreen(4); 
+                updateNarrative(5);
+            }, 4000);
+        });
+
+        btnOpenJar.addEventListener('click', () => { setActiveScreen(5); updateNarrative(6); });
+        btnFastForward.addEventListener('click', () => { setActiveScreen(6); updateNarrative(7); });
+        btnTryWithdraw.addEventListener('click', () => { setActiveScreen(7); updateNarrative(8); });
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jar "Project Glass" Solution Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f0fdf4; min-height: 100vh; } /* Green tint for Success */
+
+        /* Setup Modal */
+        .setup-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(6, 78, 59, 0.95); z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .setup-card {
+            background: white; padding: 2rem; border-radius: 1.5rem;
+            width: 90%; max-width: 600px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;
+        }
+        .upload-box {
+            border: 2px dashed #cbd5e1; padding: 1.5rem; border-radius: 1rem; cursor: pointer; transition: all 0.2s;
+        }
+        .upload-box:hover { border-color: #10b981; background: #ecfdf5; }
+        .upload-box.selected { border-color: #10b981; background: #d1fae5; }
+
+        /* Phone Frame */
+        .phone-frame {
+            width: 360px; height: 740px; border-radius: 40px;
+            border: 12px solid #1e293b; background: #000;
+            position: relative; overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); margin: 0 auto; flex-shrink: 0;
+        }
+        .notch {
+            position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            width: 140px; height: 24px; background: #1e293b;
+            border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; z-index: 100;
+        }
+
+        /* Screens */
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.5s ease;
+            background: white; display: flex; flex-direction: column;
+            pointer-events: none; opacity: 0; transform: translateX(20%); z-index: 0;
+        }
+        .screen.active { pointer-events: auto; opacity: 1; transform: translateX(0); z-index: 10; }
+
+        /* Avatars */
+        .avatar-pm {
+            width: 100px; height: 100px; border-radius: 50%; border: 4px solid white;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); object-fit: cover; object-position: top;
+        }
+        .avatar-user {
+            width: 60px; height: 60px; border-radius: 50%; border: 3px solid white;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); object-fit: cover; object-position: top;
+        }
+
+        /* Speech Bubbles */
+        .speech-bubble {
+            position: relative; background: #fff; border-radius: 1rem; padding: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); font-family: 'Comic Neue', cursive; border: 2px solid #e2e8f0;
+        }
+        .speech-bubble-user { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+        .speech-bubble-pm { background: #fff; border-left: 4px solid #10b981; /* Green for Success */ }
+
+        .btn-pulse { animation: pulse-ring 2s infinite; }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        .user-overlay {
+            position: absolute; bottom: 20px; left: 10px; right: 10px; z-index: 50;
+            display: flex; align-items: flex-end; gap: 10px;
+            pointer-events: none; transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        .hidden { opacity: 0; transform: translateY(10px); }
+
+        .notification-toast {
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: translateY(-200%);
+        }
+        .notification-toast.show { transform: translateY(0); }
+
+        /* Gram First UI specific styles */
+        .gram-display {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        }
+        .gold-glow {
+            text-shadow: 0 0 20px rgba(250, 204, 21, 0.3);
+        }
+    </style>
+</head>
+<body class="flex flex-col lg:flex-row items-start justify-center p-4 lg:p-8 gap-8 overflow-x-hidden">
+
+    <!-- === SETUP MODAL === -->
+    <div id="setup-screen" class="setup-overlay">
+        <div class="setup-card">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Project Glass: The Solution</h1>
+            <p class="text-gray-500 mb-8">Upload characters to simulate the <b>New & Improved</b> User Journey.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <!-- User Upload -->
+                <div class="upload-box" onclick="document.getElementById('input-user').click()">
+                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i class="fas fa-user text-blue-500 text-2xl"></i>
+                    </div>
+                    <h3 class="font-bold text-gray-800">The User (Rohan)</h3>
+                    <p id="label-user" class="text-xs text-gray-400 mt-1">Upload Image</p>
+                    <input type="file" id="input-user" class="hidden" accept="image/*" onchange="previewImage(this, 'user')">
+                </div>
+
+                <!-- PM Upload -->
+                <div class="upload-box" onclick="document.getElementById('input-pm').click()">
+                    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i class="fas fa-id-badge text-green-500 text-2xl"></i>
+                    </div>
+                    <h3 class="font-bold text-gray-800">The PM (Narrator)</h3>
+                    <p id="label-pm" class="text-xs text-gray-400 mt-1">Upload Image</p>
+                    <input type="file" id="input-pm" class="hidden" accept="image/*" onchange="previewImage(this, 'pm')">
+                </div>
+            </div>
+
+            <button onclick="startSimulation()" class="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition-transform active:scale-95">
+                Launch Solution Demo <i class="fas fa-magic ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- === LEFT PANEL: PM Narrator === -->
+    <div class="w-full lg:w-[400px] lg:sticky lg:top-8 flex flex-col gap-6">
+        <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 relative mt-12">
+            <!-- PM Avatar -->
+            <div class="absolute -top-12 left-6">
+                <img id="display-pm" src="https://api.dicebear.com/9.x/avataaars/svg?seed=Felix&clothing=graphicShirt&clothingColor=black&facialHair=mustache&top=shortCurly" 
+                     class="avatar-pm bg-green-50"> 
+            </div>
+
+            <div class="mt-10">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="bg-green-100 text-green-800 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">Strategic Commentary</span>
+                    <span id="pm-stage" class="text-xs font-bold text-gray-400 uppercase">Stage 1: Intent</span>
+                </div>
+                
+                <h2 id="pm-title" class="text-xl font-bold text-gray-800 mb-2">The Control Condition</h2>
+                
+                <div class="speech-bubble speech-bubble-pm">
+                    <p id="pm-dialogue" class="text-sm text-gray-700 leading-relaxed">
+                        "We start with the same trigger (Zwiggy). But notice the notification. We now explicitly mention the <b>'Goldback Subsidy'</b>. This sets a different expectation: Gain, not Loss."
+                    </p>
+                </div>
+                
+                <div class="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-4">
+                    <div>
+                        <div class="text-[10px] text-gray-400 uppercase">Solution Lever</div>
+                        <div id="pm-metric-1" class="text-sm font-bold text-green-600">Day-0 Subsidy</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-gray-400 uppercase">Trust Impact</div>
+                        <div id="pm-metric-2" class="text-sm font-bold text-gray-600">High</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <button onclick="location.reload()" class="text-xs text-gray-400 hover:text-gray-600 underline text-center">Reset Demo</button>
+    </div>
+
+    <!-- === RIGHT PANEL: Phone === -->
+    <div class="phone-frame">
+        <div class="notch"></div>
+
+        <!-- SCREEN 1: Zwiggy (Trigger - Same) -->
+        <div id="screen-1" class="screen active bg-orange-50">
+            <div class="pt-10 px-5 pb-4 bg-white shadow-sm flex justify-between items-center z-20">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-xl">Z</div>
+                    <div class="flex flex-col">
+                        <span class="font-bold text-gray-800 text-sm leading-none">Zwiggy</span>
+                        <span class="text-[10px] text-gray-400">Food Delivery</span>
+                    </div>
+                </div>
+                <i class="fas fa-wifi text-gray-300 text-xs"></i>
+            </div>
+            <div class="flex-1 p-5 flex flex-col justify-center relative">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mb-6 relative z-10">
+                    <div class="flex justify-between mb-2">
+                        <span class="text-gray-600 font-medium">Chicken Biryani</span>
+                        <span class="text-gray-900">₹292.00</span>
+                    </div>
+                    <div class="h-px bg-gray-100 w-full mb-4"></div>
+                    <div class="flex items-center gap-3">
+                        <i class="fas fa-university text-gray-400"></i>
+                        <span class="text-xs text-gray-500">Paying via UPI ending **88</span>
+                    </div>
+                </div>
+                <button id="btn-pay" class="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition-all flex items-center justify-center gap-2 relative btn-pulse cursor-pointer z-20">
+                    <span>Pay ₹292.00</span>
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- SCREEN 2: Jar Home (NEW UI: Gram First) -->
+        <div id="screen-2" class="screen bg-[#0F172A]">
+            <div class="pt-10 px-6 pb-2 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-black font-bold font-serif">J</div>
+                    <span class="text-white font-bold tracking-wide">Jar</span>
+                </div>
+                <div class="flex gap-4 text-gray-400 text-lg">
+                    <div class="relative">
+                        <i class="fas fa-shield-alt text-green-500"></i>
+                        <span class="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-1 p-5 overflow-y-auto pb-24">
+                <div class="text-gray-400 text-xs font-bold uppercase mb-4 tracking-wider">Your Digital Locker</div>
+                
+                <!-- Main Card (GRAM FIRST) -->
+                <div class="gram-display rounded-2xl p-6 border border-gray-700 shadow-xl relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-40 h-40 bg-yellow-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+                    
+                    <div class="relative z-10 text-center py-4">
+                        <div class="text-xs text-yellow-500 font-bold uppercase tracking-widest mb-2">Total Gold Owned</div>
+                        <div class="text-5xl font-bold text-white font-mono gold-glow mb-2">0.0012<span class="text-xl text-gray-500">g</span></div>
+                        
+                        <div class="inline-flex items-center gap-2 bg-green-500/20 border border-green-500/30 px-3 py-1 rounded-full mt-2">
+                            <i class="fas fa-check-circle text-green-500 text-xs"></i>
+                            <span class="text-xs text-green-400 font-bold">Value Protected</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 pt-4 border-t border-gray-700/50 flex justify-between items-center">
+                        <div>
+                            <div class="text-[10px] text-gray-500 uppercase">Current Value</div>
+                            <div class="text-sm font-medium text-white">₹8.00</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] text-gray-500 uppercase">Invested</div>
+                            <div class="text-sm font-medium text-gray-400">₹8.00</div>
+                        </div>
+                    </div>
+
+                    <button id="btn-details" class="w-full mt-6 py-3 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white text-xs font-bold uppercase tracking-wide rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg cursor-pointer">
+                        <i class="fas fa-file-invoice"></i> View Smart Receipt
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN 3: Smart Receipt (Transparent Breakdown) -->
+        <div id="screen-3" class="screen bg-white">
+            <div class="pt-10 px-5 pb-3 border-b border-gray-100 flex items-center gap-3">
+                <button id="btn-back" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-full cursor-pointer"><i class="fas fa-arrow-left"></i></button>
+                <span class="font-bold text-gray-900">Smart Receipt</span>
+            </div>
+            <div class="flex-1 p-5 overflow-y-auto pb-24">
+                
+                <div class="bg-gray-50 rounded-xl p-5 border border-gray-200 space-y-4">
+                    <!-- Standard Line Items -->
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600 text-sm">Amount Invested</span>
+                        <span class="text-gray-900 font-bold">₹8.00</span>
+                    </div>
+                    
+                    <div class="pl-4 border-l-2 border-dashed border-gray-300 space-y-3 py-2">
+                        <!-- Radical Transparency -->
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-gray-500">Govt GST (3%)</span>
+                            <span class="text-red-500 font-medium">- ₹0.24</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-gray-500">Buy Spread</span>
+                            <span class="text-red-500 font-medium">- ₹0.29</span>
+                        </div>
+                        <!-- The Offset -->
+                        <div class="flex justify-between items-center text-xs bg-green-50 p-2 rounded border border-green-100 -ml-2">
+                            <span class="text-green-700 font-bold"><i class="fas fa-gift mr-1"></i> Jar Welcome Subsidy</span>
+                            <span class="text-green-600 font-bold">+ ₹0.53</span>
+                        </div>
+                    </div>
+
+                    <div class="h-px bg-gray-200 w-full"></div>
+
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-900 font-bold text-sm">Net Gold Value</span>
+                        <span class="text-gray-900 font-bold text-xl">₹8.00</span>
+                    </div>
+                </div>
+
+                <!-- Trust Signal -->
+                <div class="mt-6 border border-yellow-200 bg-yellow-50 rounded-xl p-4 flex items-center gap-4 shadow-sm cursor-pointer active:scale-95 transition-transform">
+                    <div class="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600">
+                        <i class="fas fa-award"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-gray-800">Vault Certificate Issued</div>
+                        <div class="text-[10px] text-gray-500">Augmont Vaults • 24K Pure</div>
+                    </div>
+                    <i class="fas fa-download ml-auto text-blue-500"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- USER OVERLAY -->
+        <div id="user-overlay" class="user-overlay hidden">
+            <img id="display-user" src="https://api.dicebear.com/9.x/avataaars/svg?seed=Rohan&clothing=hoodie&clothingColor=gray&top=shaggyMullet&accessories=prescription02&skinColor=brown" 
+                 class="avatar-user bg-gray-200">
+            <div class="speech-bubble speech-bubble-user flex-1">
+                <p id="user-dialogue" class="text-xs font-bold">...</p>
+            </div>
+        </div>
+
+        <!-- ENHANCED NOTIFICATION -->
+        <div id="notification" class="notification-toast absolute top-8 left-4 right-4 bg-gray-900 text-white p-4 rounded-2xl shadow-xl z-50 flex items-center gap-3 border border-gray-700">
+            <div class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center text-white font-bold text-xl"><i class="fas fa-check"></i></div>
+            <div class="flex-1">
+                <h4 class="text-[10px] text-green-400 font-bold uppercase">Jar • Subsidy Applied</h4>
+                <p class="text-xs font-medium mt-0.5">Saved ₹8. We covered the tax! 🛡️</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIC -->
+    <script>
+        // === IMAGE UPLOAD LOGIC ===
+        function previewImage(input, type) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById(`display-${type}`).src = e.target.result;
+                    const box = input.parentElement;
+                    box.classList.add('selected');
+                    document.getElementById(`label-${type}`).innerText = "Image Loaded!";
+                    document.getElementById(`label-${type}`).className = "text-xs text-green-600 font-bold mt-1";
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function startSimulation() {
+            const modal = document.getElementById('setup-screen');
+            modal.style.transition = "opacity 0.5s";
+            modal.style.opacity = "0";
+            setTimeout(() => {
+                modal.style.display = "none";
+                // Show User bubble initially
+                updateNarrative(0);
+            }, 500);
+        }
+
+        // === SIMULATION LOGIC ===
+        const screens = [
+            document.getElementById('screen-1'),
+            document.getElementById('screen-2'),
+            document.getElementById('screen-3')
+        ];
+        
+        const pmDialogue = document.getElementById('pm-dialogue');
+        const pmTitle = document.getElementById('pm-title');
+        const pmStage = document.getElementById('pm-stage');
+        const pmMetric1 = document.getElementById('pm-metric-1');
+        const pmMetric2 = document.getElementById('pm-metric-2');
+        
+        const userOverlay = document.getElementById('user-overlay');
+        const userDialogue = document.getElementById('user-dialogue');
+        const btnPay = document.getElementById('btn-pay');
+        const btnDetails = document.getElementById('btn-details');
+        const btnBack = document.getElementById('btn-back');
+        const notification = document.getElementById('notification');
+
+        const steps = [
+            {
+                pm: { title: 'The Solution Trigger', dialogue: `"We start with the same trigger. But wait for the notification. We have changed the copy to explicitly mention the <b>Subsidy</b>. This kills the 'hidden fee' fear before it starts."`, stage: 'Stage 1: Intent', m1: 'Low Friction', m1Class: 'text-green-600', m2: 'Spending' },
+                user: { dialogue: `"Alright, paying for food. Let's see..."` }
+            },
+            {
+                pm: { title: 'The Trust Signal', dialogue: `"Boom. The notification confirms 'We covered the tax'. Rohan feels protected. He knows his ₹8 is safe. The expectation is set correctly: <b>Zero Loss.</b>"`, stage: 'Stage 2: Validation', m1: 'High Trust', m1Class: 'text-green-600', m2: 'Relief' },
+                user: { dialogue: `"Oh? They covered the tax? So I didn't lose anything? That's cool."` }
+            },
+            {
+                pm: { title: 'Gram-First Design', dialogue: `"Look at the Home Screen. We made the <b>Grams</b> massive. Why? Because grams only go up. Value fluctuates. <br>We also show ₹8 = ₹8. No red arrows. No anxiety."`, stage: 'Stage 3: Ownership', m1: 'Retention Up', m1Class: 'text-green-600', m2: 'Accumulation Mode' },
+                user: { dialogue: `"Okay, I have 0.0012g. And my ₹8 is still ₹8. Looks safe."` }
+            },
+            {
+                pm: { title: 'The Smart Receipt', dialogue: `"He checks the breakdown. We show the Tax (transparency), but we also show the <b>Goldback</b> covering it (generosity). <br>Plus, the Vault Certificate proves ownership. He's not churning."`, stage: 'Stage 4: LTV Secured', m1: 'Churn < 5%', m1Class: 'text-green-600', m2: 'Loyalty' },
+                user: { dialogue: `"I see... there WAS a tax, but Jar paid it. And I have a certificate? Okay, I trust this."` }
+            }
+        ];
+
+        function updateNarrative(stepIndex) {
+            const data = steps[stepIndex];
+            pmTitle.innerHTML = data.pm.title;
+            pmDialogue.innerHTML = data.pm.dialogue;
+            pmStage.innerText = data.pm.stage;
+            pmMetric1.innerText = data.pm.m1;
+            pmMetric1.className = `text-sm font-bold ${data.pm.m1Class}`;
+            pmMetric2.innerText = data.pm.m2;
+            
+            userOverlay.classList.remove('hidden');
+            userDialogue.innerText = data.user.dialogue;
+        }
+
+        function setActiveScreen(index) {
+            screens.forEach((screen, i) => {
+                if (i === index) screen.classList.add('active');
+                else screen.classList.remove('active');
+            });
+        }
+
+        btnPay.addEventListener('click', () => {
+            btnPay.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            btnPay.classList.add('bg-gray-500', 'cursor-not-allowed');
+            btnPay.classList.remove('bg-green-600', 'btn-pulse');
+            setTimeout(() => { notification.classList.add('show'); updateNarrative(1); }, 1000);
+            setTimeout(() => { notification.classList.remove('show'); setActiveScreen(1); updateNarrative(2); }, 3500);
+        });
+
+        btnDetails.addEventListener('click', () => { setActiveScreen(2); updateNarrative(3); });
+        btnBack.addEventListener('click', () => { setActiveScreen(1); updateNarrative(2); });
+
+    </script>
+</body>
+</html>

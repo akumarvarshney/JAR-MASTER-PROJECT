@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jar Trust Engine: Advanced Algorithmic Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #ffffff; color: #0f172a; overflow-x: auto; overflow-y: hidden; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* Blueprint Graph Paper Background */
+        .blueprint-bg {
+            background-color: #f8fafc;
+            background-image: 
+                linear-gradient(#e2e8f0 1px, transparent 1px),
+                linear-gradient(90deg, #e2e8f0 1px, transparent 1px);
+            background-size: 25px 25px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Abstract Style Blobs */
+        .blob-tl { position: absolute; top: -50px; left: -50px; width: 300px; height: 300px; background: #cbdceb; border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; z-index: 0; opacity: 0.6; }
+        .blob-br-2 { position: absolute; bottom: -30px; right: -20px; width: 150px; height: 200px; background: #002060; border-radius: 40% 60% 30% 70%; z-index: 1; opacity: 0.9;}
+
+        /* Node Styling */
+        .engine-node {
+            background: #ffffff; border: 2px solid #cbd5e1; border-radius: 12px; padding: 16px;
+            box-shadow: 0 4px 10px -2px rgba(0, 0, 0, 0.05); transition: all 0.3s ease;
+            position: relative; z-index: 10;
+        }
+
+        /* Active Path Animations */
+        @keyframes pulse-blue { 0% { border-color: #3b82f6; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3); } 70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); } 100% { border-color: #cbd5e1; } }
+        @keyframes pulse-yellow { 0% { border-color: #eab308; box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.3); } 70% { box-shadow: 0 0 0 15px rgba(234, 179, 8, 0); } 100% { border-color: #cbd5e1; } }
+        @keyframes pulse-green { 0% { border-color: #10b981; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.3); } 70% { box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); } 100% { border-color: #cbd5e1; } }
+
+        .active-process { animation: pulse-blue 1.5s infinite; border-color: #3b82f6; }
+        .active-warn { animation: pulse-yellow 1.5s infinite; border-color: #eab308; }
+        .active-success { animation: pulse-green 1.5s infinite; border-color: #10b981; }
+
+        /* Animated Data Streams (Connectors) */
+        .stream-v, .stream-h {
+            position: absolute; z-index: 0; background-color: #e2e8f0;
+            overflow: hidden;
+        }
+        .stream-v::after, .stream-h::after {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+            transform: translateX(-100%); opacity: 0;
+        }
+        .stream-v::after { background: linear-gradient(180deg, transparent, #3b82f6, transparent); transform: translateY(-100%); }
+        
+        .active-stream.stream-h::after { animation: flowH 1s infinite linear; opacity: 1; }
+        .active-stream.stream-v::after { animation: flowV 1s infinite linear; opacity: 1; }
+
+        @keyframes flowH { 100% { transform: translateX(100%); } }
+        @keyframes flowV { 100% { transform: translateY(100%); } }
+
+        /* Data Packet */
+        .packet {
+            position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #2563eb;
+            z-index: 50; opacity: 0; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 15px #2563eb;
+        }
+        .packet.show { opacity: 1; }
+
+        /* KPI Card */
+        .kpi-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .persona-card { cursor: pointer; transition: all 0.2s; border: 2px solid #e2e8f0; background: #ffffff; }
+        .persona-card:hover { border-color: #94a3b8; background: #f8fafc; transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .persona-card.selected { border-color: #2563eb; background: #eff6ff; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        
+        /* Toggle Switch */
+        .toggle-btn.active { background-color: #1e293b; color: white; }
+
+        /* Terminal Cursor */
+        .term-cursor::after { content: '█'; animation: blink 1s step-start infinite; color: #10b981; }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* Switch styling */
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #3b82f6; }
+        input:checked + .slider:before { transform: translateX(20px); }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <!-- TOP HEADER -->
+    <div class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center z-30 shadow-sm relative">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-3 font-serif">
+                <div class="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold font-sans text-lg">J</div>
+                The Trust Layer Engine <span class="text-[10px] bg-blue-100 text-blue-800 px-2 py-1 rounded font-sans align-middle ml-2 font-bold tracking-widest uppercase">Beyond Limits Edition</span>
+            </h1>
+            <p class="text-xs text-slate-500 mt-1 uppercase tracking-widest font-mono">Algorithmic Margin & Retention Manager</p>
+        </div>
+        
+        <!-- Live System Guardrails & Controls -->
+        <div class="flex items-center gap-8">
+            
+            <!-- Slow Motion Toggle -->
+            <div class="flex items-center gap-3 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl">
+                <span class="text-xs font-bold text-slate-600 uppercase tracking-widest"><i class="fas fa-tachometer-alt mr-1"></i> Slow Mo (0.5x)</span>
+                <label class="switch">
+                    <input type="checkbox" id="slow-mo-toggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="flex gap-4">
+                <div class="kpi-card flex items-center gap-4 py-2 px-4 border-l-4 border-l-green-500">
+                    <div>
+                        <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Sys Gross Margin</div>
+                        <div class="text-lg font-mono font-bold text-green-600 transition-all duration-300" id="metric-margin">2.80%</div>
+                    </div>
+                </div>
+                <div class="kpi-card flex items-center gap-4 py-2 px-4 border-l-4 border-l-blue-500">
+                    <div>
+                        <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Retention Budget (Mth)</div>
+                        <div class="text-lg font-mono font-bold text-blue-600 transition-all duration-300" id="metric-budget">₹3.00 Cr</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD -->
+    <div class="flex-1 flex overflow-x-auto overflow-y-hidden min-w-[1450px]">
+
+        <!-- LEFT: Persona Inputs -->
+        <div class="w-[340px] bg-slate-50 border-r border-slate-200 p-6 flex flex-col z-20 overflow-y-auto shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Incoming Event Stream</h3>
+            
+            <div class="space-y-4">
+                <!-- Persona 1: Panic Seller -->
+                <div class="persona-card p-4 rounded-xl relative overflow-hidden" id="persona-panic" onclick="simulate('panic')">
+                    <div class="absolute right-0 top-0 w-1 h-full bg-red-500"></div>
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="font-bold text-slate-900 text-sm">Rohan (Panic Seller)</span>
+                        <span class="bg-red-100 text-red-700 border border-red-200 text-[9px] px-2 py-1 rounded font-bold">FULL EXIT</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs text-slate-500 font-mono mt-3">
+                        <div>Tenure: <span class="text-slate-900 font-semibold">45 Days</span></div>
+                        <div>IRR: <span class="text-red-600 font-semibold">-4.5%</span></div>
+                    </div>
+                    <div class="text-[10px] text-gray-400 mt-2 italic">Trigger: User initiated total withdrawal.</div>
+                </div>
+
+                <!-- Persona 2: Loyal Saver -->
+                <div class="persona-card p-4 rounded-xl relative overflow-hidden" id="persona-loyal" onclick="simulate('loyal')">
+                    <div class="absolute right-0 top-0 w-1 h-full bg-green-500"></div>
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="font-bold text-slate-900 text-sm">Priya (VIP Saver)</span>
+                        <span class="bg-green-100 text-green-800 border border-green-200 text-[9px] px-2 py-1 rounded font-bold">PARTIAL EXIT</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs text-slate-500 font-mono mt-3">
+                        <div>Tenure: <span class="text-slate-900 font-semibold">14 Mths</span></div>
+                        <div>AUM: <span class="text-green-600 font-semibold">₹45,000</span></div>
+                    </div>
+                    <div class="text-[10px] text-gray-400 mt-2 italic">Trigger: Withdrawing ₹10k for Diwali.</div>
+                </div>
+
+                <!-- Persona 3: Standard Exit -->
+                <div class="persona-card p-4 rounded-xl relative overflow-hidden" id="persona-std" onclick="simulate('std')">
+                    <div class="absolute right-0 top-0 w-1 h-full bg-slate-400"></div>
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="font-bold text-slate-900 text-sm">Amit (Standard)</span>
+                        <span class="bg-slate-200 text-slate-700 border border-slate-300 text-[9px] px-2 py-1 rounded font-bold">WITHDRAWAL</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs text-slate-500 font-mono mt-3">
+                        <div>Tenure: <span class="text-slate-900 font-semibold">7 Mths</span></div>
+                        <div>IRR: <span class="text-slate-900 font-semibold">+1.1%</span></div>
+                    </div>
+                    <div class="text-[10px] text-gray-400 mt-2 italic">Trigger: Standard portfolio liquidation.</div>
+                </div>
+            </div>
+
+            <div class="mt-auto bg-blue-50 p-4 rounded-xl border border-blue-200">
+                <p class="text-xs text-blue-800 leading-relaxed">
+                    <i class="fas fa-info-circle mr-1 text-blue-600"></i> The Trust Engine protects margins by only subsidizing users where the ROI (preventing churn) is highest.
+                </p>
+            </div>
+        </div>
+
+        <!-- CENTER: The Architecture Diagram (Blueprint Style) -->
+        <div class="flex-1 blueprint-bg relative p-8 flex items-center justify-center z-0">
+            <div class="blob-tl"></div>
+            <div class="blob-br-2"></div>
+
+            <!-- Central Flow Container -->
+            <div class="relative w-[700px] h-[500px]">
+                
+                <div id="packet" class="packet"></div>
+
+                <!-- Step 1: Entry -->
+                <div class="engine-node absolute top-[20px] left-1/2 -translate-x-1/2 w-48 text-center" id="node-entry">
+                    <i class="fas fa-mobile-alt text-2xl text-slate-400 mb-2"></i>
+                    <h3 class="text-sm font-bold text-slate-900">App Client</h3>
+                    <div class="text-[10px] text-slate-500 font-mono mt-1" id="lbl-entry">Awaiting Input...</div>
+                </div>
+
+                <div class="stream-v w-1 h-12 left-1/2 top-[100px]" id="line-1"></div>
+
+                <!-- Step 2: Engine -->
+                <div class="engine-node absolute top-[148px] left-1/2 -translate-x-1/2 w-72 text-center" id="node-engine">
+                    <i class="fas fa-microchip text-3xl text-blue-600 mb-2"></i>
+                    <h3 class="text-sm font-bold text-slate-900">Trust Rules Engine</h3>
+                    <div class="text-[10px] text-slate-500 mt-1 font-medium">Evaluates: Tenure | IRR | LTV | Budgets</div>
+                </div>
+
+                <!-- Branching Lines -->
+                <div class="stream-v w-1 h-8 left-1/2 top-[240px]" id="line-2"></div>
+                <div class="stream-h h-1 w-96 left-1/2 -translate-x-1/2 top-[272px]" id="line-branch"></div>
+                
+                <div class="stream-v w-1 h-8 left-[calc(50%-192px)] top-[272px]" id="line-l"></div>
+                <div class="stream-v w-1 h-8 left-1/2 top-[272px]" id="line-c"></div>
+                <div class="stream-v w-1 h-8 left-[calc(50%+192px)] top-[272px]" id="line-r"></div>
+
+                <!-- Step 3: Branch Outcomes -->
+                <div class="engine-node absolute top-[304px] left-[calc(50%-192px)] -translate-x-1/2 w-40 text-center opacity-50" id="node-losscap">
+                    <i class="fas fa-parachute-box text-xl text-yellow-500 mb-2"></i>
+                    <h3 class="text-xs font-bold text-slate-900">Loss-Cap Protocol</h3>
+                    <div class="text-[9px] text-slate-500 mt-1 bg-yellow-50 rounded">Waive Spread</div>
+                </div>
+
+                <div class="engine-node absolute top-[304px] left-1/2 -translate-x-1/2 w-40 text-center opacity-50" id="node-std">
+                    <i class="fas fa-check-circle text-xl text-blue-500 mb-2"></i>
+                    <h3 class="text-xs font-bold text-slate-900">Standard Flow</h3>
+                    <div class="text-[9px] text-slate-500 mt-1 bg-slate-100 rounded">Full Spread Applied</div>
+                </div>
+
+                <div class="engine-node absolute top-[304px] left-[calc(50%+192px)] -translate-x-1/2 w-40 text-center opacity-50" id="node-loyalty">
+                    <i class="fas fa-crown text-xl text-green-500 mb-2"></i>
+                    <h3 class="text-xs font-bold text-slate-900">Loyalty Protocol</h3>
+                    <div class="text-[9px] text-slate-500 mt-1 bg-green-50 rounded">50% Spread Discount</div>
+                </div>
+
+                <!-- Converge Lines -->
+                <div class="stream-v w-1 h-8 left-[calc(50%-192px)] top-[390px]" id="line-l2"></div>
+                <div class="stream-v w-1 h-8 left-1/2 top-[390px]" id="line-c2"></div>
+                <div class="stream-v w-1 h-8 left-[calc(50%+192px)] top-[390px]" id="line-r2"></div>
+                <div class="stream-h h-1 w-96 left-1/2 -translate-x-1/2 top-[422px]" id="line-converge"></div>
+                <div class="stream-v w-1 h-8 left-1/2 top-[422px]" id="line-3"></div>
+
+                <!-- Step 4: Explainability API -->
+                <div class="engine-node absolute top-[454px] left-1/2 -translate-x-1/2 w-64 text-center border-dashed border-blue-400" id="node-explain">
+                    <i class="fas fa-code text-2xl text-blue-400 mb-2"></i>
+                    <h3 class="text-sm font-bold text-slate-900">Explainability Service</h3>
+                    <div class="text-[10px] text-slate-500 mt-1">Constructs dynamic UI + JSON Payload</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Output & PM Translation -->
+        <div class="w-[420px] bg-white border-l border-slate-200 flex flex-col z-20 shadow-[-4px_0_24px_rgba(0,0,0,0.02)]">
+            
+            <!-- Technical Outputs (Top Half) -->
+            <div class="h-[320px] flex flex-col border-b border-slate-200">
+                <div class="p-4 bg-slate-50 flex justify-between items-center border-b border-slate-200">
+                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Technical Execution</h3>
+                    <div class="flex bg-slate-200 p-1 rounded-lg">
+                        <button onclick="toggleView('logs')" id="tab-logs" class="toggle-btn active text-[10px] font-bold px-3 py-1 rounded-md transition-colors"><i class="fas fa-terminal mr-1"></i> Logs</button>
+                        <button onclick="toggleView('ui')" id="tab-ui" class="toggle-btn text-slate-600 text-[10px] font-bold px-3 py-1 rounded-md transition-colors"><i class="fas fa-mobile-alt mr-1"></i> UI</button>
+                        <button onclick="toggleView('api')" id="tab-api" class="toggle-btn text-slate-600 text-[10px] font-bold px-3 py-1 rounded-md transition-colors"><i class="fas fa-code mr-1"></i> API</button>
+                    </div>
+                </div>
+
+                <!-- Persistent Logs View -->
+                <div id="view-logs" class="flex-1 bg-[#0f172a] p-4 overflow-y-auto text-green-400 font-mono text-xs shadow-inner">
+                    <div id="log-content" class="space-y-1">
+                        <div class="text-slate-500">// System initialized. Awaiting event...</div>
+                    </div>
+                    <div class="term-cursor mt-1"></div>
+                </div>
+
+                <!-- UI View -->
+                <div id="view-ui" class="hidden flex-1 bg-slate-50 p-6 flex items-center justify-center">
+                    <div class="bg-white rounded-2xl p-5 shadow-xl border border-slate-200 text-slate-800 relative w-full max-w-[280px]">
+                        <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-3 py-1 rounded-full">User Screen</div>
+                        <div class="mt-2" id="ui-payload">
+                            <div class="text-sm text-slate-400 text-center italic py-4">Awaiting Engine Decision...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API View -->
+                <div id="view-api" class="hidden flex-1 bg-[#0f172a] p-4 overflow-y-auto text-blue-300 font-mono text-[10px] shadow-inner">
+                    <pre id="api-payload">// Awaiting network response...</pre>
+                </div>
+            </div>
+
+            <!-- Strategic Impact (Bottom Half) -->
+            <div class="flex-1 p-6 overflow-y-auto bg-white">
+                <h3 class="text-xs font-bold text-blue-600 uppercase tracking-widest mb-4">Strategic A/B Outcome</h3>
+                
+                <div id="strategy-box" class="h-full flex items-center justify-center">
+                    <p class="text-sm text-slate-500 italic text-center">Select a persona to see the A/B comparison of Legacy vs Trust Layer architecture.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- LOGIC -->
+    <script>
+        // Data Models
+        const data = {
+            panic: {
+                label: "Req: Full Exit (₹2.4k)", targetNode: "node-losscap",
+                logs: [
+                    "[00ms] INGEST: Withdrawal request received (Amt: ₹2400.00)",
+                    "[50ms] ENGINE: Fetching user profile for Rohan_01...",
+                    "[120ms] EVAL: Tenure = 45 days [FLAG: HIGH_RISK_CHURN]",
+                    "[150ms] EVAL: Lifetime IRR = -4.5% [FLAG: NEGATIVE_EXPERIENCE]",
+                    "[200ms] ROUTE: Triggering LOSS_CAP_PROTOCOL",
+                    "[250ms] BUDGET: Deducting ₹72.00 from Marketing Retention Fund",
+                    "[300ms] EXEC: Standard 3% exit spread waived.",
+                    "[350ms] EXPLAIN: Constructing 'Dip Protection' JSON payload...",
+                    "[400ms] SUCCESS: Sent 200 OK to Client."
+                ],
+                ui: `
+                    <div class="text-xs font-bold text-red-600 mb-2"><i class="fas fa-shield-alt"></i> Market Dip Protection</div>
+                    <p class="text-[10px] text-slate-600 leading-tight mb-3 border-b pb-2">Gold is down temporarily. To protect your savings, <b>Jar has waived the 3% exit fee.</b></p>
+                    <div class="flex justify-between font-bold text-xs mb-4"><span>Net to Bank:</span><span>₹2,400</span></div>
+                    <button class="w-full bg-slate-900 text-white text-[10px] font-bold py-2 rounded">Withdraw Anyway</button>
+                    <button class="w-full text-blue-600 border border-blue-200 text-[10px] font-bold py-2 mt-2 rounded bg-blue-50 hover:bg-blue-100 transition-colors">Keep Invested</button>
+                `,
+                api: `{\n  "status": "success",\n  "intent": "withdrawal",\n  "base_value": 2400.00,\n  "spread_pct": 0.00, \n  "subsidy_applied": true,\n  "subsidy_amt": 72.00,\n  "ui_module": "loss_cap_waive",\n  "net_payout": 2400.00\n}`,
+                strategy: `
+                    <div class="grid grid-cols-2 gap-3 h-full">
+                        <div class="bg-red-50 border border-red-200 p-3 rounded-lg flex flex-col">
+                            <h4 class="text-[10px] font-bold text-red-800 uppercase mb-2 border-b border-red-200 pb-1">Legacy System</h4>
+                            <p class="text-[10px] text-red-700 mb-2">User receives ₹2,328 (losing ₹72). Feels scammed.</p>
+                            <div class="mt-auto pt-2 border-t border-red-200 text-[10px] font-bold text-red-900">
+                                Result: 100% Churn<br>LTV Lost: ₹1,500
+                            </div>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 p-3 rounded-lg flex flex-col">
+                            <h4 class="text-[10px] font-bold text-green-800 uppercase mb-2 border-b border-green-200 pb-1">Trust Layer</h4>
+                            <p class="text-[10px] text-green-700 mb-2">We invest ₹72 from CAC budget to waive fees. User feels respected.</p>
+                            <div class="mt-auto pt-2 border-t border-green-200 text-[10px] font-bold text-green-900">
+                                Result: 40% Stay<br>Net ROI: +10x
+                            </div>
+                        </div>
+                    </div>
+                `,
+                budget: "₹2.99 Cr", margin: "2.80%", path: ['line-1', 'line-2', 'line-branch', 'line-l', 'node-losscap', 'line-l2', 'line-converge', 'line-3']
+            },
+            loyal: {
+                label: "Req: Partial Exit (₹10k)", targetNode: "node-loyalty",
+                logs: [
+                    "[00ms] INGEST: Withdrawal request received (Amt: ₹10000.00)",
+                    "[50ms] ENGINE: Fetching user profile for Priya_99...",
+                    "[120ms] EVAL: Tenure = 420 days [FLAG: HIGH_LTV]",
+                    "[150ms] EVAL: Saving Streak = 365 days [FLAG: VIP_BEHAVIOR]",
+                    "[200ms] ROUTE: Triggering LOYALTY_PROTOCOL",
+                    "[250ms] CALC: Applying 50% discount to standard spread.",
+                    "[300ms] EXEC: Spread adjusted to 1.5%. Fee is ₹150 (not ₹300).",
+                    "[350ms] EXPLAIN: Constructing 'VIP Perk' JSON payload...",
+                    "[400ms] SUCCESS: Sent 200 OK to Client."
+                ],
+                ui: `
+                    <div class="text-xs font-bold text-green-600 mb-2"><i class="fas fa-crown"></i> 1-Year Saver Perk</div>
+                    <p class="text-[10px] text-slate-600 leading-tight mb-3 border-b pb-2">Because you saved for 365 days, your exit fee is halved!</p>
+                    <div class="flex justify-between text-[10px] text-slate-500 mb-1"><span>Gold Value:</span><span>₹10,000</span></div>
+                    <div class="flex justify-between text-[10px] text-green-600 mb-3"><span>VIP Spread (1.5%):</span><span>- ₹150</span></div>
+                    <button class="w-full bg-green-600 text-white text-[10px] font-bold py-2 rounded shadow-md">Confirm ₹9,850</button>
+                `,
+                api: `{\n  "status": "success",\n  "intent": "withdrawal",\n  "base_value": 10000.00,\n  "spread_pct": 1.50, \n  "loyalty_tier": "gold_vip",\n  "fee_deducted": 150.00,\n  "ui_module": "loyalty_discount",\n  "net_payout": 9850.00\n}`,
+                strategy: `
+                    <div class="grid grid-cols-2 gap-3 h-full">
+                        <div class="bg-slate-50 border border-slate-200 p-3 rounded-lg flex flex-col">
+                            <h4 class="text-[10px] font-bold text-slate-800 uppercase mb-2 border-b border-slate-200 pb-1">Legacy System</h4>
+                            <p class="text-[10px] text-slate-600 mb-2">User pays full ₹300 fee despite 1-year loyalty. Feels transactional.</p>
+                            <div class="mt-auto pt-2 border-t border-slate-200 text-[10px] font-bold text-slate-800">
+                                Margin: Maximized<br>Brand Love: Flat
+                            </div>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 p-3 rounded-lg flex flex-col">
+                            <h4 class="text-[10px] font-bold text-blue-800 uppercase mb-2 border-b border-blue-200 pb-1">Trust Layer</h4>
+                            <p class="text-[10px] text-blue-700 mb-2">We sacrifice ₹150 margin today to create an extreme brand advocate.</p>
+                            <div class="mt-auto pt-2 border-t border-blue-200 text-[10px] font-bold text-blue-900">
+                                Margin: Slight Dip<br>SIP Growth: High Prob.
+                            </div>
+                        </div>
+                    </div>
+                `,
+                budget: "₹3.00 Cr", margin: "2.78%", path: ['line-1', 'line-2', 'line-branch', 'line-r', 'node-loyalty', 'line-r2', 'line-converge', 'line-3']
+            },
+            std: {
+                label: "Req: Full Exit (₹8k)", targetNode: "node-std",
+                logs: [
+                    "[00ms] INGEST: Withdrawal request received (Amt: ₹8000.00)",
+                    "[50ms] ENGINE: Fetching user profile for Amit_K...",
+                    "[120ms] EVAL: Tenure = 210 days [FLAG: STANDARD]",
+                    "[150ms] EVAL: Lifetime IRR = +1.1% [FLAG: PROFIT_STATE]",
+                    "[200ms] ROUTE: Triggering STANDARD_PROTOCOL",
+                    "[250ms] CALC: Applying standard 3% wholesale-retail spread.",
+                    "[300ms] EXEC: Fee calculated at ₹240.00.",
+                    "[350ms] EXPLAIN: Constructing 'Transparent Breakdown' payload...",
+                    "[400ms] SUCCESS: Sent 200 OK to Client."
+                ],
+                ui: `
+                    <div class="text-xs font-bold text-slate-800 mb-3">Withdrawal Breakdown</div>
+                    <div class="space-y-2 mb-4 border-l-2 border-slate-200 pl-3">
+                        <div class="flex justify-between text-[10px] text-slate-600"><span>Gold Value</span><span>₹8,000</span></div>
+                        <div class="flex justify-between text-[10px] text-red-500"><span>Partner Spread (3%)</span><span>- ₹240</span></div>
+                    </div>
+                    <div class="h-px bg-slate-200 mb-3"></div>
+                    <div class="flex justify-between text-xs font-bold text-slate-900 mb-4"><span>Net to Bank</span><span>₹7,760</span></div>
+                    <button class="w-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-2 rounded transition-colors shadow-md">Confirm ₹7,760</button>
+                `,
+                api: `{\n  "status": "success",\n  "intent": "withdrawal",\n  "base_value": 8000.00,\n  "spread_pct": 3.00, \n  "fee_deducted": 240.00,\n  "ui_module": "standard_receipt",\n  "net_payout": 7760.00\n}`,
+                strategy: `
+                    <div class="grid grid-cols-2 gap-3 h-full">
+                        <div class="bg-red-50 border border-red-200 p-3 rounded-lg flex flex-col">
+                            <h4 class="text-[10px] font-bold text-red-800 uppercase mb-2 border-b border-red-200 pb-1">Legacy System</h4>
+                            <p class="text-[10px] text-red-700 mb-2">User sees ₹7,760 with zero explanation. Assumes Jar stole ₹240.</p>
+                            <div class="mt-auto pt-2 border-t border-red-200 text-[10px] font-bold text-red-900">
+                                Margin: 3%<br>Support Tickets: High
+                            </div>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 p-3 rounded-lg flex flex-col">
+                            <h4 class="text-[10px] font-bold text-blue-800 uppercase mb-2 border-b border-blue-200 pb-1">Trust Layer</h4>
+                            <p class="text-[10px] text-blue-700 mb-2">User sees exact math. No hidden fees. We capture full margin honestly.</p>
+                            <div class="mt-auto pt-2 border-t border-blue-200 text-[10px] font-bold text-blue-900">
+                                Margin: 3%<br>Support Tickets: Zero
+                            </div>
+                        </div>
+                    </div>
+                `,
+                budget: "₹3.00 Cr", margin: "2.81%", path: ['line-1', 'line-2', 'line-branch', 'line-c', 'node-std', 'line-c2', 'line-converge', 'line-3']
+            }
+        };
+
+        const wait = (ms) => {
+            const isSlowMo = document.getElementById('slow-mo-toggle').checked;
+            return new Promise(res => setTimeout(res, isSlowMo ? ms * 2.5 : ms));
+        };
+
+        function toggleView(view) {
+            ['ui', 'api', 'logs'].forEach(v => {
+                const tab = document.getElementById(`tab-${v}`);
+                const container = document.getElementById(`view-${v}`);
+                if(v === view) {
+                    tab.classList.add('active', 'bg-slate-800', 'text-white');
+                    tab.classList.remove('text-slate-600');
+                    container.classList.remove('hidden');
+                    container.classList.add(v === 'ui' ? 'flex' : 'block');
+                } else {
+                    tab.classList.remove('active', 'bg-slate-800', 'text-white');
+                    tab.classList.add('text-slate-600');
+                    container.classList.add('hidden');
+                    container.classList.remove('flex', 'block');
+                }
+            });
+        }
+
+        async function streamLogs(logsArray) {
+            const content = document.getElementById('log-content');
+            content.innerHTML = '';
+            
+            for (let line of logsArray) {
+                const div = document.createElement('div');
+                content.appendChild(div);
+                
+                // Color coding based on tags
+                if(line.includes("EVAL")) div.className = "text-yellow-400";
+                else if(line.includes("SUCCESS")) div.className = "text-blue-400 font-bold";
+                else if(line.includes("BUDGET")) div.className = "text-red-400";
+                else div.className = "text-green-400";
+
+                for (let i = 0; i < line.length; i++) {
+                    div.innerHTML += line.charAt(i);
+                    await wait(5); // Typing speed
+                }
+                
+                // Auto scroll
+                const logContainer = document.getElementById('view-logs');
+                logContainer.scrollTop = logContainer.scrollHeight;
+                
+                await wait(150); // Pause between lines
+            }
+        }
+
+        function resetSystem() {
+            document.querySelectorAll('.persona-card').forEach(c => c.classList.remove('selected'));
+            ['node-entry', 'node-engine', 'node-losscap', 'node-std', 'node-loyalty', 'node-explain'].forEach(id => {
+                document.getElementById(id).className = document.getElementById(id).className.replace(/active-\w+/g, '');
+            });
+            ['node-losscap', 'node-std', 'node-loyalty'].forEach(id => document.getElementById(id).classList.add('opacity-50'));
+            document.querySelectorAll('[id^="line-"]').forEach(l => l.classList.remove('active-stream'));
+            
+            document.getElementById('lbl-entry').innerText = "Awaiting Input...";
+            document.getElementById('ui-payload').innerHTML = `<div class="text-sm text-slate-400 text-center italic py-4">Awaiting Engine Decision...</div>`;
+            document.getElementById('api-payload').innerText = "// Awaiting network response...";
+            document.getElementById('strategy-box').innerHTML = `<div class="h-full flex items-center justify-center"><p class="text-sm text-slate-500 italic text-center">Select a persona to see the A/B comparison of Legacy vs Trust Layer architecture.</p></div>`;
+            document.getElementById('log-content').innerHTML = '<div class="text-slate-500">// System initialized. Awaiting event...</div>';
+            document.getElementById('packet').classList.remove('show');
+        }
+
+        async function simulate(type) {
+            if(document.getElementById('packet').classList.contains('show')) return;
+            resetSystem();
+            const scenario = data[type];
+
+            // 1. Init
+            document.getElementById(`persona-${type}`).classList.add('selected');
+            document.getElementById('lbl-entry').innerText = scenario.label;
+            document.getElementById('node-entry').classList.add('active-process');
+            
+            // Force view to Logs so user can watch the engine
+            toggleView('logs');
+            
+            const pkt = document.getElementById('packet');
+            pkt.style.left = '50%'; pkt.style.top = '60px'; pkt.style.transform = 'translate(-50%, -50%)';
+            pkt.classList.add('show');
+            await wait(200);
+
+            // Start typing logs concurrently with visual flow
+            const logPromise = streamLogs(scenario.logs);
+
+            // 2. Route to Engine
+            document.getElementById('line-1').classList.add('active-stream');
+            pkt.style.top = '148px';
+            await wait(600);
+            
+            document.getElementById('node-entry').classList.remove('active-process');
+            document.getElementById('node-engine').classList.add('active-process');
+            
+            await wait(800); // Let engine "think"
+
+            // 3. Branching Logic
+            document.getElementById('line-2').classList.add('active-stream');
+            document.getElementById('line-branch').classList.add('active-stream');
+            pkt.style.top = '272px';
+            
+            if(type === 'panic') { pkt.style.left = 'calc(50% - 192px)'; document.getElementById('line-l').classList.add('active-stream'); }
+            if(type === 'std') { pkt.style.left = '50%'; document.getElementById('line-c').classList.add('active-stream'); }
+            if(type === 'loyal') { pkt.style.left = 'calc(50% + 192px)'; document.getElementById('line-r').classList.add('active-stream'); }
+            
+            await wait(400);
+            pkt.style.top = '304px';
+            
+            document.getElementById('node-engine').classList.remove('active-process');
+            document.getElementById(scenario.targetNode).classList.remove('opacity-50');
+            if(type === 'panic') document.getElementById(scenario.targetNode).classList.add('active-warn');
+            if(type === 'loyal') document.getElementById(scenario.targetNode).classList.add('active-success');
+            if(type === 'std') document.getElementById(scenario.targetNode).classList.add('active-process');
+            
+            await wait(600);
+
+            // 4. Converge to Explainability
+            if(type === 'panic') document.getElementById('line-l2').classList.add('active-stream');
+            if(type === 'std') document.getElementById('line-c2').classList.add('active-stream');
+            if(type === 'loyal') document.getElementById('line-r2').classList.add('active-stream');
+            
+            document.getElementById('line-converge').classList.add('active-stream');
+            pkt.style.top = '422px';
+            await wait(300);
+            pkt.style.left = '50%';
+            await wait(300);
+            document.getElementById('line-3').classList.add('active-stream');
+            pkt.style.top = '454px';
+            await wait(400);
+
+            document.getElementById(scenario.targetNode).classList.remove('active-warn', 'active-success', 'active-process');
+            document.getElementById('node-explain').classList.add('active-process');
+            pkt.classList.remove('show');
+
+            await wait(600);
+
+            // Await logs to finish if they haven't already
+            await logPromise;
+
+            // 5. Output
+            document.getElementById('node-explain').classList.remove('active-process');
+            
+            // Set UI & API Data
+            document.getElementById('ui-payload').innerHTML = scenario.ui;
+            document.getElementById('api-payload').innerText = scenario.api;
+            document.getElementById('strategy-box').innerHTML = scenario.strategy;
+            
+            // Auto switch to App UI view at the end to reveal the outcome
+            toggleView('ui');
+
+            // Flash KPIs
+            const mMargin = document.getElementById('metric-margin');
+            const mBudget = document.getElementById('metric-budget');
+            mMargin.style.opacity = '0.3'; mBudget.style.opacity = '0.3';
+            setTimeout(() => { 
+                mMargin.innerText = scenario.margin; 
+                mBudget.innerText = scenario.budget; 
+                mMargin.style.opacity = '1'; 
+                mBudget.style.opacity = '1'; 
+            }, 300);
+        }
+        
+        // Initial tab setup
+        toggleView('logs');
+    </script>
+</body>
+</html>
